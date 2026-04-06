@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🕵️ AI Image Forensics App
 
-## Getting Started
+A professional-grade, multi-layered forensic suite designed to detect AI-generated, manipulated, and enhanced imagery. The application employs a "Skeptical Forensic Analyst" methodology, cross-referencing visual artifacts and digital signatures across an 8-stage automated inspection pipeline.
 
-First, run the development server:
+## 🚀 Key Features
+- **Hybrid Forensic Logic (HFL)**: Dual-track reasoning system (Signatures vs. Physical Integrity).
+- **8-Stage Neural Pipeline**: Automated extraction of ELA, Edge Maps, and high-resolutions tiles.
+- **Interactive Forensic Slider**: Real-time side-by-side comparison of original source vs. forensic maps.
+- **AI Quota Guard**: Visual pulse countdown to manage API rate limits gracefully.
+- **Forensic PDF Export**: Professionally formatted investigation reports for legal/official records.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 🛠 Tech Stack
+
+### Frontend
+- **Framework**: [Next.js 16 (App Router)](https://nextjs.org/)
+- **Styling**: [Tailwind CSS 4](https://tailwindcss.com/)
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **Components**: Framer Motion (for micro-animations).
+
+### Backend
+- **Engine**: [FastAPI](https://fastapi.tiangolo.com/) (Python 3.12+)
+- **Computer Vision**: OpenCV (Canny Edge), Pillow (ELA & Tiling).
+- **Communication**: [Uvicorn](https://www.uvicorn.org/) ASGI server.
+
+### AI Core
+- **Model**: [Google Gemini 2.5 Flash](https://aistudio.google.com/) (Multimodal).
+- **SDK**: `google-genai` (Vercel-AI compatible).
+
+## 📊 System Architecture
+
+The following diagram illustrates the data flow from the moment an image is uploaded until the final forensic verdict is delivered.
+
+```mermaid
+graph TD
+    A[User Image Upload] --> B[Next.js Frontend]
+    B --> C[FastAPI Backend]
+    
+    subgraph "8-Stage Forensic Pipeline"
+        C --> D1[Metadata Signature Scan]
+        C --> D2[High-Res Quadrant Tiling]
+        C --> D3[Error Level Analysis - ELA]
+        C --> D4[300x300 Corner Super-Zoom]
+        C --> D5[Canny Edge Geometric Map]
+    end
+    
+    D1 & D2 & D3 & D4 & D5 --> E[Gemini 2.5 Flash - Hybrid Analysis]
+    
+    subgraph "Hybrid Forensic Logic"
+        E --> F1[Track 1: Digital Signature Hunting]
+        E --> F2[Track 2: Physical/Geometric Integrity]
+    end
+    
+    F1 & F2 --> G[Final Forensic Verdict]
+    G --> H[Interactive Frontend Dashboard]
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🔍 Forensic Investigation Pipeline
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1.  **Metadata Scan**: Scans file headers for hard-coded AI monograms (Gemini, Adobe Firefly, etc.).
+2.  **Quadrants (1-4)**: Images are tiled to prevent detail loss during AI downscaling, ensuring texture analysis is accurate.
+3.  **ELA (Error Level Analysis)**: Highlights areas with inconsistent compression levels, a key indicator of manipulation.
+4.  **Corner Zoom**: A high-resolution crop of the bottom-right corner to hunt for subtle digital watermarks.
+5.  **Canny Edge Analysis**: Extracts geometric outlines to expose hidden AI watermarks and structural failures.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🖼️ GUI Showcase
 
-## Learn More
+### Dashboard Overview
+![Dashboard Placeholder](https://via.placeholder.com/800x450?text=Dashboard+Overview+-+Forensic+Upload+Zone)
+*The primary workspace where the 'Neural Investigation' begins.*
 
-To learn more about Next.js, take a look at the following resources:
+### Forensic Comparison Slider
+![Forensic Slider Placeholder](https://via.placeholder.com/800x450?text=Forensic+Slider+-+Side-by-Side+Comparison)
+*Interactive tool for comparing the original source with the generated ELA map.*
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Neural Anomaly Detection
+![Anomaly Detection Placeholder](https://via.placeholder.com/800x450?text=Anomaly+Detection+-+High-Res+Tile+Hit)
+*Detailed view of a triggered forensic hit pinpointed within a specific quadrant.*
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## ⚙️ Getting Started
 
-## Deploy on Vercel
+### Prerequisites
+- Python 3.12+
+- Node.js 18+
+- [Gemini API Key](https://aistudio.google.com/)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Backend Setup
+1. `cd backend`
+2. `python -m venv venv && source venv/bin/activate`
+3. `pip install -r requirements.txt`
+4. Create `.env` using `.env.example`.
+5. `uvicorn main:app --reload`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Frontend Setup
+1. `cd frontend`
+2. `npm install`
+3. Create `.env.local` using `.env.local.example`.
+4. `npm run dev`
+
+## ⚖️ License
+Restricted Investigative License - 2026 Neural Interrogator Suite.
