@@ -65,15 +65,15 @@ graph TD
 ## 🖼️ GUI Showcase
 
 ### Dashboard Overview
-![Dashboard Placeholder](https://via.placeholder.com/800x450?text=Dashboard+Overview+-+Forensic+Upload+Zone)
+![Dashboard Overview](assets/dashboard.png)
 *The primary workspace where the 'Neural Investigation' begins.*
 
 ### Forensic Comparison Slider
-![Forensic Slider Placeholder](https://via.placeholder.com/800x450?text=Forensic+Slider+-+Side-by-Side+Comparison)
+![Forensic Comparison Slider](assets/slider.png)
 *Interactive tool for comparing the original source with the generated ELA map.*
 
 ### Neural Anomaly Detection
-![Anomaly Detection Placeholder](https://via.placeholder.com/800x450?text=Anomaly+Detection+-+High-Res+Tile+Hit)
+![Neural Anomaly Detection](assets/anomaly.png)
 *Detailed view of a triggered forensic hit pinpointed within a specific quadrant.*
 
 ## ⚙️ Getting Started
