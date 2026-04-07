@@ -97,4 +97,4 @@ graph TD
 4. `npm run dev`
 
 ## ⚖️ License
-Restricted Investigative License - 2026 Neural Interrogator Suite.
+Distributed under the MIT License. See `LICENSE` for more information.
