@@ -1,28 +1,71 @@
 import io
 import os
 import cv2
+import uuid
+import base64
 import numpy as np
 from PIL import Image, ImageChops, ImageStat, ImageEnhance
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Literal
+import json
+import asyncio
+from typing import Literal, List, Optional, Any
+from fastapi.responses import StreamingResponse
+
 from google import genai
 from google.genai import types
+from google.cloud import firestore
+from google.cloud import storage
 
 load_dotenv()
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "ai-forensics-project-4421")
+LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
+if GEMINI_API_KEY:
+    client = genai.Client(api_key=GEMINI_API_KEY, http_options={'api_version': 'v1beta'})
+else:
+    print("Warning: GEMINI_API_KEY not found in environment.")
+    client = None
+
+# Initialize Firestore DB
+try:
+    db = firestore.Client(project=PROJECT_ID)
+except Exception as e:
+    print(f"Warning: Failed to initialize Firestore: {e}")
+    db = None
+
+# Initialize GCS
+try:
+    storage_client = storage.Client(project=PROJECT_ID)
+    BUCKET_NAME = f"{PROJECT_ID}-evidence"
+    bucket = storage_client.bucket(BUCKET_NAME)
+    if not bucket.exists():
+        bucket = storage_client.create_bucket(BUCKET_NAME, location=LOCATION)
+        # Auto-delete evidence files after 7 days to prevent runaway storage costs
+        bucket.add_lifecycle_delete_rule(age=7)
+        bucket.patch()
+except Exception as e:
+    print(f"Warning: Failed to initialize GCS: {e}")
+    storage_client = None
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["*"], # Relaxed for Cloud Run deployment, can be narrowed later
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class ReasoningStep(BaseModel):
+    thought: str
+    action: Optional[str] = None
+    observation: Optional[str] = None
 
 class ForensicFinding(BaseModel):
     description: str
@@ -33,29 +76,22 @@ class ForensicEvidence(BaseModel):
     url: str # Base64 data URL
 
 class ForensicAnalysisResult(BaseModel):
+    case_id: Optional[str] = None
     verdict: str
     confidence_level: str
     explanation: str
     detailed_findings: list[ForensicFinding] = []
     evidence_images: list[ForensicEvidence] = []
+    reasoning_steps: list[ReasoningStep] = []
 
 def get_ela_image(original_pil: Image.Image, quality: int = 90) -> bytes:
     """Generates an Error Level Analysis (ELA) image."""
-    # 1. Save original as a temporary JPEG with specific quality
     temp_buf = io.BytesIO()
     original_pil.save(temp_buf, format="JPEG", quality=quality)
     temp_buf.seek(0)
-    
-    # 2. Re-open the temporary JPEG
     temp_img = Image.open(temp_buf)
-    
-    # 3. Calculate absolute difference
     ela_img = ImageChops.difference(original_pil, temp_img)
-    
-    # 4. Enhance the difference using a FIXED 20x multiplier to prevent washing out subtle artifacts
     ela_img = ImageEnhance.Brightness(ela_img).enhance(20.0)
-    
-    # 5. Return as JPEG bytes
     res_buf = io.BytesIO()
     ela_img.save(res_buf, format="JPEG")
     return res_buf.getvalue()
@@ -63,17 +99,15 @@ def get_ela_image(original_pil: Image.Image, quality: int = 90) -> bytes:
 def get_corner_zoom(original_pil: Image.Image, size: int = 300) -> bytes:
     """Provides a high-res crop of the bottom-right corner."""
     w, h = original_pil.size
-    # Focus strictly on the bottom-right 300x300 corner
     corner = original_pil.crop((w - size, h - size, w, h))
     buf = io.BytesIO()
-    corner.save(buf, format="JPEG", quality=100) # Uncompressed for maximum detail
+    corner.save(buf, format="JPEG", quality=100)
     return buf.getvalue()
 
 def get_edge_map(image_bytes: bytes) -> bytes:
     """Generates a Canny Edge map to highlight geometric artifacts."""
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
-    # Detect edges - low/high thresholds tuned for watermark detection
     edges = cv2.Canny(img, 100, 200)
     res_buf = io.BytesIO()
     is_success, buffer = cv2.imencode(".jpg", edges)
@@ -88,110 +122,246 @@ def scan_metadata(img: Image.Image) -> str | None:
             return f"Found AI signature in metadata: '{word}'"
     return None
 
+def upload_to_gcs(image_bytes: bytes, filename: str, content_type: str = "image/jpeg") -> str:
+    """Uploads bytes to GCS and returns the public URL."""
+    if storage_client is None:
+        # Fallback to local Base64 for local dev without GCS
+        return f"data:{content_type};base64,{base64.b64encode(image_bytes).decode()}"
+    try:
+        blob = bucket.blob(filename)
+        blob.upload_from_string(image_bytes, content_type=content_type)
+        # Assuming the bucket is configured for public read access. If not, this URL will 403.
+        return f"https://storage.googleapis.com/{BUCKET_NAME}/{filename}"
+    except Exception as e:
+        print(f"GCS Upload Error: {e}")
+        return ""
+
 @app.get("/")
 def read_root():
-    return {"status": "Backend is Online", "CORS": "Active"}
+    return {"status": "Forensic Agent Online", "project": PROJECT_ID}
 
-@app.post("/analyze_image/", response_model=ForensicAnalysisResult)
+MAX_FILE_SIZE = 5 * 1024 * 1024 # 5 MB
+ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"]
+
+@app.post("/analyze_image/")
 async def analyze_image(file: UploadFile = File(...)):
-    try:
-        # 1. Read the original image
-        image_bytes = await file.read()
-        pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        width, height = pil_img.size
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=415, detail="Unsupported file format. Please upload a JPEG, PNG, or WEBP.")
         
-        # 2. QUICK SCAN: Metadata Forensics
-        metadata_finding = scan_metadata(pil_img)
-        if metadata_finding:
-            return ForensicAnalysisResult(
-                verdict="AI-Generated",
-                confidence_level="High",
-                explanation=f"HARD-CODED DETECTION: {metadata_finding}. This image contains explicit digital watermarks in its file header.",
-                detailed_findings=[ForensicFinding(description=metadata_finding, location_normalized=[0,0,0,0])]
-            )
-        
-        # 3. Generate 4 Quadrants (Sliding Window)
-        mid_x, mid_y = width // 2, height // 2
-        quadrants = [
-            pil_img.crop((0, 0, mid_x, mid_y)),          # Top-Left
-            pil_img.crop((mid_x, 0, width, mid_y)),      # Top-Right
-            pil_img.crop((0, mid_y, mid_x, height)),     # Bottom-Left
-            pil_img.crop((mid_x, mid_y, width, height)), # Bottom-Right
-        ]
-        
-        # 4. Generate ELA, Corner Zoom, and Edge Map
-        ela_bytes = get_ela_image(pil_img)
-        corner_bytes = get_corner_zoom(pil_img)
-        edge_bytes = get_edge_map(corner_bytes)
-        
-        # 5. Convert all parts to bytes for Gemini
-        analysis_parts = []
-        analysis_parts.append(types.Part.from_bytes(data=image_bytes, mime_type=file.content_type))
-        
-        for q in quadrants:
-            buf = io.BytesIO()
-            q.save(buf, format="JPEG", quality=95)
-            analysis_parts.append(types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"))
+    image_bytes = await file.read()
+    if len(image_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail="File exceeds the 5MB size limit.")
+
+    queue = asyncio.Queue()
+
+    async def send_event(event_type: str, data: dict):
+        await queue.put(f"data: {json.dumps({'type': event_type, **data})}\n\n")
+
+    async def analysis_task():
+        try:
+            pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+            case_id = f"FF-{str(uuid.uuid4())[:8].upper()}"
+            evidence_images = []
+
+            async def yield_step(thought, action, observation=None):
+                step = ReasoningStep(thought=thought, action=action, observation=observation)
+                await send_event("step", {"step": step.model_dump()})
+
+            async def call_gemini_async(prompt, config=None):
+                if client is None: raise Exception("AI Client not initialized")
+                
+                models_to_try = ["gemini-2.0-flash", "gemini-flash-latest", "gemini-2.0-flash-lite", "gemini-2.5-flash"]
+                
+                for model_name in models_to_try:
+                    for i in range(2): # Try each model twice
+                        try:
+                            return await asyncio.to_thread(
+                                client.models.generate_content,
+                                model=model_name,
+                                contents=prompt,
+                                config=config
+                            )
+                        except Exception as e:
+                            err_msg = str(e).lower()
+                            if "429" in err_msg:
+                                if i == 0: # First try, wait 5s
+                                    await asyncio.sleep(5)
+                                    continue
+                                else: # Second try failed, move to next model
+                                    break
+                            raise e
+                
+                raise Exception("All available AI model quotas (2.0 Flash, 1.5 Flash, 1.5 Flash-8B) have been exhausted for today. Please try again tomorrow or use a different API key.")
+
+            # 1. INITIAL REASONING & GLOBAL SCANS
+            await yield_step("Initializing forensic investigation and performing global scans.", "System Initialization")
+
+            metadata_finding = scan_metadata(pil_img)
+            if metadata_finding:
+                await yield_step("Checking image metadata.", "Metadata Scan", metadata_finding)
             
-        analysis_parts.append(types.Part.from_bytes(data=ela_bytes, mime_type="image/jpeg"))
-        analysis_parts.append(types.Part.from_bytes(data=corner_bytes, mime_type="image/jpeg")) # Image 7
-        analysis_parts.append(types.Part.from_bytes(data=edge_bytes, mime_type="image/jpeg"))   # Image 8
-        
-        prompt = (
-            "ACT AS A SENIOR HYBRID FORENSIC ANALYST. Your mission is to find PROOF of non-organic imagery. "
-            "\nYou are receiving 8 forensic context images: "
-            "\n- Image 1: GLOBAL CONTEXT (Full Scan)"
-            "\n- Images 2-5: QUADRANT ZOOM-INS (Texture Analysis)"
-            "\n- Image 6: ERROR LEVEL ANALYSIS (ELA) MAP (Intensity Check)"
-            "\n- Image 7: CORNER ZOOM (High-Res Signature Scan)"
-            "\n- Image 8: EDGE MAP (Canny Analysis) (Geometric Signature Scan)"
-            "\n\nYOUR MISSION: Use a two-track detection system: "
-            "\n\nTRACK 1: SIGNATURE SCAN (PRIORITY 0): "
-            "\n- Search Image 7 and Image 8 specifically for AI 'Digital Stamps' (Monograms). These are NOT artistic decorations; they are absolute proof. "
-            "\n- Look for the 'GEMINI SPARKLE' (a four-pointed star), 'DALL-E' (5 colored squares), or 'ADOBE CR' badge. "
-            "\n- If a geometric shape in Image 8 matches these, you have found proof. "
-            "\n\nTRACK 2: SCIENTIFIC INTEGRITY: "
-            "\n1. GEOMETRIC INTEGRITY: (Images 2-5) Check for warped lines, symmetrical failures, and rigid-body fusions. "
-            "\n2. TEXTURE CONTINUITY: Look for 'tiled' repetition in natural patterns, noise floor gaps, and 'plastic' smoothing. "
-            "\n3. PHYSICS & LIGHTING BALANCE: (Image 1) Shadow directions, perspective consistency, and gravity logic. "
-            "\n\nTHE 'ONE PROOF' RULE: If either Track 1 (Signature) or Track 2 (Physics) provides even ONE definitive failure, the image IS 'AI-Generated'. "
-            "\n\nREPORT STYLE: For every finding in 'detailed_findings', explain if it is a 'Signature' or a 'Logic Failure'. Use [ymin, xmin, ymax, xmax] coordinates."
-        )
-        
-        # Collect Evidence Images for Frontend Gallery
-        import base64
-        evidence_images = []
-        
-        # Helper to convert PIL to Base64
-        def to_b64(img, name):
-            b = io.BytesIO()
-            img.save(b, format="JPEG", quality=85)
-            b64 = base64.b64encode(b.getvalue()).decode()
-            return ForensicEvidence(**{"name": name, "url": f"data:image/jpeg;base64,{b64}"})
+            await yield_step("Generating Error Level Analysis (ELA) map to detect compression inconsistencies.", "ELA Map Generation")
+            ela_bytes = get_ela_image(pil_img)
+            ela_url = upload_to_gcs(ela_bytes, f"{case_id}-global-ela.jpg")
+            evidence_images.append(ForensicEvidence(name="Global Error Level Analysis (ELA)", url=ela_url))
 
-        evidence_images.append(to_b64(Image.open(io.BytesIO(ela_bytes)), "Error Level Analysis (ELA)"))
-        evidence_images.append(to_b64(Image.open(io.BytesIO(corner_bytes)), "High-Res Corner Zoom"))
-        evidence_images.append(to_b64(Image.open(io.BytesIO(edge_bytes)), "Canny Edge Analysis"))
-        
-        # Add Quadrants
-        for i, q in enumerate(quadrants):
-            evidence_images.append(to_b64(q, f"Quadrant Zoom {i+1}"))
+            # Optimization: Resize for AI prompt to avoid token bloat
+            max_size = 1024
+            if max(pil_img.size) > max_size:
+                ratio = max_size / max(pil_img.size)
+                new_size = (int(pil_img.size[0] * ratio), int(pil_img.size[1] * ratio))
+                ai_pil = pil_img.resize(new_size, Image.LANCZOS)
+                ai_buf = io.BytesIO()
+                ai_pil.save(ai_buf, format="JPEG", quality=85)
+                ai_bytes = ai_buf.getvalue()
+            else:
+                ai_bytes = image_bytes
 
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=[prompt] + analysis_parts,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=ForensicAnalysisResult,
-            ),
-        )
+            # Also resize ELA for AI
+            ela_pil_obj = Image.open(io.BytesIO(ela_bytes)).convert("RGB")
+            if max(ela_pil_obj.size) > max_size:
+                ratio = max_size / max(ela_pil_obj.size)
+                new_size = (int(ela_pil_obj.size[0] * ratio), int(ela_pil_obj.size[1] * ratio))
+                ai_ela_pil = ela_pil_obj.resize(new_size, Image.LANCZOS)
+                ai_ela_buf = io.BytesIO()
+                ai_ela_pil.save(ai_ela_buf, format="JPEG", quality=85)
+                ai_ela_bytes = ai_ela_buf.getvalue()
+            else:
+                ai_ela_bytes = ela_bytes
+
+            # 2. COMPREHENSIVE FORENSIC ANALYSIS (Consolidated)
+            await yield_step("Deploying a specialized Forensic Expert Panel to review the global imagery, ELA maps, and noise profiles.", "Forensic Expert Panel")
+
+            analysis_images = [
+                types.Part.from_bytes(data=ai_bytes, mime_type=file.content_type),
+                types.Part.from_bytes(data=ai_ela_bytes, mime_type="image/jpeg"),
+            ]
+
+            panel_prompt = (
+                "ACT AS A PANEL OF 3 FORENSIC SPECIALISTS:\n"
+                "1. Geometry & Lighting: Focus on physics, shadows, perspective.\n"
+                "2. Pixel Integrity: Focus on ELA maps, noise, and compression.\n"
+                "3. Semantic Plausibility: Focus on AI structural failures (fingers, text, etc).\n"
+                "Review the provided evidence and provide a consolidated forensic report with clear sections for each specialist."
+            )
+            
+            panel_resp = await call_gemini_async(
+                prompt=[panel_prompt] + analysis_images,
+                config=types.GenerateContentConfig(max_output_tokens=2048)
+            )
+            consensus_text = panel_resp.text.strip()
+            print(f"DEBUG: Panel Response Length: {len(consensus_text)}")
+            
+            await yield_step("Expert Panel has completed the multi-dimensional review.", "Panel Review Complete", consensus_text)
+
+            # 3. FINAL VERDICT (The Judge)
+            await yield_step("Synthesizing specialized reports and issuing final ruling.", "Supreme Judge Review")
+            
+            judge_prompt = [
+                types.Part.from_bytes(data=ai_bytes, mime_type=file.content_type),
+                f"You are the Supreme Forensic Judge. Review these specialist reports:\n\n{consensus_text}\n\n"
+                "Weigh their arguments along with your own assessment of the original image. Issue the final verdict in JSON format ONLY: "
+                '{"verdict": "AI-Generated" | "Authentic" | "AI-Enhanced", "confidence_level": "Low" | "Medium" | "High", "explanation": "...", "detailed_findings": [{"description": "...", "location_normalized": [ymin, xmin, ymax, xmax]}]}'
+            ]
+            
+            judge_resp = await call_gemini_async(
+                prompt=judge_prompt,
+                config=types.GenerateContentConfig(max_output_tokens=4096, response_mime_type="application/json")
+            )
+            text_response = judge_resp.text.strip()
+            print(f"DEBUG: Judge Response Length: {len(text_response)}")
+            
+            try:
+                raw_result = json.loads(text_response)
+            except json.JSONDecodeError as e:
+                print(f"JSON Decode Error: {e}. Attempting recovery...")
+                # Simple recovery: find the last closing brace
+                last_brace = text_response.rfind('}')
+                if last_brace != -1:
+                    try:
+                        raw_result = json.loads(text_response[:last_brace+1])
+                    except:
+                        raise e
+                else:
+                    raise e
+            
+            result = ForensicAnalysisResult(
+                case_id=case_id,
+                verdict=raw_result.get("verdict", "Unknown"),
+                confidence_level=raw_result.get("confidence_level", "Low"),
+                explanation=raw_result.get("explanation", ""),
+                detailed_findings=[ForensicFinding(**f) for f in raw_result.get("detailed_findings", [])],
+                evidence_images=evidence_images,
+                reasoning_steps=[]
+            )
+            
+            # Persist to Firestore (Now perfectly safe because images are URLs)
+            if db is not None:
+                try:
+                    # Upload Original Image for posterity
+                    orig_url = upload_to_gcs(image_bytes, f"{case_id}-original.jpg", file.content_type)
+                    
+                    doc_data = {
+                        "case_id": result.case_id,
+                        "verdict": result.verdict,
+                        "confidence_level": result.confidence_level,
+                        "explanation": result.explanation,
+                        "detailed_findings": [f.model_dump() for f in result.detailed_findings],
+                        "evidence_images": [img.model_dump() for img in evidence_images],
+                        "original_image_url": orig_url,
+                        "created_at": firestore.SERVER_TIMESTAMP
+                    }
+                    db.collection("forensic_cases").document(case_id).set(doc_data)
+                except Exception as e:
+                    print(f"Error saving to Firestore: {e}")
+            
+            await send_event("complete", {"result": result.model_dump()})
+
+        except Exception as e:
+            print(f"Error in analysis task: {e}")
+            await send_event("error", {"detail": str(e)})
+        finally:
+            await queue.put(None)
+
+    async def generator():
+        task = asyncio.create_task(analysis_task())
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            yield item
+        await task
+            
+    return StreamingResponse(
+        generator(), 
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+@app.get("/cases/{case_id}", response_model=ForensicAnalysisResult)
+def get_case(case_id: str):
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database not initialized.")
+    
+    doc_ref = db.collection("forensic_cases").document(case_id)
+    doc = doc_ref.get()
+    
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Case not found")
         
-        result = ForensicAnalysisResult.model_validate_json(response.text)
-        result.evidence_images = evidence_images
-        return result
-    except Exception as e:
-        print(f"Error: {e}")
-        error_msg = str(e)
-        if "429" in error_msg:
-            raise HTTPException(status_code=429, detail="AI Resource Exhausted. Please wait a minute.")
-        raise HTTPException(status_code=500, detail=error_msg)
+    data = doc.to_dict()
+    
+    # Reconstruct perfectly
+    return ForensicAnalysisResult(
+        case_id=data.get("case_id", case_id),
+        verdict=data.get("verdict", "Unknown"),
+        confidence_level=data.get("confidence_level", "Low"),
+        explanation=data.get("explanation", ""),
+        detailed_findings=[ForensicFinding(**f) for f in data.get("detailed_findings", [])],
+        evidence_images=[ForensicEvidence(**img) for img in data.get("evidence_images", [])],
+        reasoning_steps=[]
+    )

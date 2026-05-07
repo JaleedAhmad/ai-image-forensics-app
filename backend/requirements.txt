@@ -1,9 +1,14 @@
 fastapi
 uvicorn[standard]
 pydantic
+google-cloud-aiplatform>=1.49.0
+google-generativeai
 google-genai
+langchain-google-vertexai
 python-multipart
 Pillow
 opencv-python-headless
 numpy
 python-dotenv
+google-cloud-firestore
+google-cloud-storage

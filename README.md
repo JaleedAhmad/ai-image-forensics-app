@@ -1,66 +1,79 @@
-# 🕵️ AI Image Forensics App
+# 🕵️ NEURAL FORENSICS V6.0
 
-A professional-grade, multi-layered forensic suite designed to detect AI-generated, manipulated, and enhanced imagery. The application employs a "Skeptical Forensic Analyst" methodology, cross-referencing visual artifacts and digital signatures across an 8-stage automated inspection pipeline.
+[![Project License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Next.js](https://img.shields.io/badge/frontend-Next.js%2016-black)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688)](https://fastapi.tiangolo.com/)
+[![Gemini](https://img.shields.io/badge/AI-Google%20Gemini%202.5-vibrant)](https://aistudio.google.com/)
+
+A premium, agentic AI forensic suite designed to interrogate digital imagery for signs of manipulation, generation, and enhancement. Utilizing an **8-stage automated inspection pipeline** and a **dual-track reasoning system**, the suite provides high-confidence verdicts backed by visual evidence and a transparent reasoning chain.
+
+---
 
 ## 🚀 Key Features
-- **Hybrid Forensic Logic (HFL)**: Dual-track reasoning system (Signatures vs. Physical Integrity).
-- **8-Stage Neural Pipeline**: Automated extraction of ELA, Edge Maps, and high-resolutions tiles.
-- **Interactive Forensic Slider**: Real-time side-by-side comparison of original source vs. forensic maps.
-- **AI Quota Guard**: Visual pulse countdown to manage API rate limits gracefully.
-- **Forensic PDF Export**: Professionally formatted investigation reports for legal/official records.
+
+- **🧠 Agentic Reasoning Chain**: Watch the "Neural Interrogator" think in real-time. The system streams its internal logic, from initial metadata scans to the final supreme verdict.
+- **🔬 Interactive Forensic Slider**: Compare original source imagery with generated **Error Level Analysis (ELA)** heatmaps using a high-precision side-by-side slider.
+- **🎯 Precision Artifact Tagging**: Automatically detects and frames "Forensic Hits" (anomalies) with normalized bounding boxes and detailed artifact descriptions.
+- **🔍 Deep Inspection Tools**: Integrated zoom-to-artifact functionality allows investigators to scrutinize microscopic structural failures.
+- **📄 Forensic PDF Export**: Generate professional, legally-ready investigation reports containing verdicts, confidence levels, and evidence catalogs.
+- **📦 Intelligence Archive**: Export full case data as a `.zip` archive, including JSON technical reports and high-resolution evidence maps.
+
+---
 
 ## 🛠 Tech Stack
 
-### Frontend
+### Frontend (Intelligence Dashboard)
 - **Framework**: [Next.js 16 (App Router)](https://nextjs.org/)
-- **Styling**: [Tailwind CSS 4](https://tailwindcss.com/)
-- **Icons**: [Lucide React](https://lucide.dev/)
-- **Components**: Framer Motion (for micro-animations).
+- **Styling**: [Tailwind CSS 4](https://tailwindcss.com/) (Atomic Design System)
+- **Visuals**: Framer Motion (State-aware micro-animations)
+- **Reporting**: `html2pdf.js` & `JSZip` for secure data export.
 
-### Backend
-- **Engine**: [FastAPI](https://fastapi.tiangolo.com/) (Python 3.12+)
-- **Computer Vision**: OpenCV (Canny Edge), Pillow (ELA & Tiling).
-- **Communication**: [Uvicorn](https://www.uvicorn.org/) ASGI server.
+### Backend (Forensic Engine)
+- **Core**: [FastAPI](https://fastapi.tiangolo.com/) (Python 3.12+)
+- **CV Pipeline**: OpenCV (Canny Edge), Pillow (ELA & Tiling).
+- **Storage**: Google Cloud Storage (Evidence Hosting) & Firestore (Case Management).
 
-### AI Core
-- **Model**: [Google Gemini 2.5 Flash](https://aistudio.google.com/) (Multimodal).
-- **SDK**: `google-genai` (Vercel-AI compatible).
+### AI Core (Neural Logic)
+- **Models**: [Google Gemini 2.0/2.5 Flash](https://aistudio.google.com/)
+- **Paradigm**: Agentic Multi-Step Reasoning (Expert Panel -> Supreme Judge).
+
+---
 
 ## 📊 System Architecture
 
-The following diagram illustrates the data flow from the moment an image is uploaded until the final forensic verdict is delivered.
+The following diagram illustrates the agentic data flow within the V6.0 pipeline.
 
 ```mermaid
 graph TD
-    A[User Image Upload] --> B[Next.js Frontend]
-    B --> C[FastAPI Backend]
+    A[Image Upload] --> B[Next.js Dashboard]
+    B --> C[FastAPI Engine]
     
-    subgraph "8-Stage Forensic Pipeline"
-        C --> D1[Metadata Signature Scan]
-        C --> D2[High-Res Quadrant Tiling]
-        C --> D3[Error Level Analysis - ELA]
-        C --> D4[300x300 Corner Super-Zoom]
-        C --> D5[Canny Edge Geometric Map]
+    subgraph "Forensic Pipeline"
+        C --> D1[Metadata Scan]
+        C --> D2[ELA Map Generation]
+        C --> D3[Expert Panel Reasoning]
+        C --> D4[Supreme Judge Verdict]
     end
     
-    D1 & D2 & D3 & D4 & D5 --> E[Gemini 2.5 Flash - Hybrid Analysis]
+    D1 & D2 & D3 & D4 --> E[Streaming Response]
+    E --> F[Interactive Dashboard]
     
-    subgraph "Hybrid Forensic Logic"
-        E --> F1[Track 1: Digital Signature Hunting]
-        E --> F2[Track 2: Physical/Geometric Integrity]
+    subgraph "Persistent Layer"
+        C --> G[GCS - Evidence Maps]
+        C --> H[Firestore - Case History]
     end
-    
-    F1 & F2 --> G[Final Forensic Verdict]
-    G --> H[Interactive Frontend Dashboard]
 ```
 
-## 🔍 Forensic Investigation Pipeline
+---
 
-1.  **Metadata Scan**: Scans file headers for hard-coded AI monograms (Gemini, Adobe Firefly, etc.).
-2.  **Quadrants (1-4)**: Images are tiled to prevent detail loss during AI downscaling, ensuring texture analysis is accurate.
-3.  **ELA (Error Level Analysis)**: Highlights areas with inconsistent compression levels, a key indicator of manipulation.
-4.  **Corner Zoom**: A high-resolution crop of the bottom-right corner to hunt for subtle digital watermarks.
-5.  **Canny Edge Analysis**: Extracts geometric outlines to expose hidden AI watermarks and structural failures.
+## 🔍 Investigation Pipeline
+
+1.  **Metadata Interrogation**: Scans file headers for known AI signatures (Gemini, DALL-E, etc.).
+2.  **Error Level Analysis (ELA)**: Identifies inconsistencies in pixel compression levels.
+3.  **Neural Expert Panel**: Three virtual specialists (Geometry, Pixel Integrity, Semantic Plausibility) analyze the evidence.
+4.  **Supreme Verdict**: A consolidated ruling is issued with a confidence score and detailed artifact locations.
+
+---
 
 ## 🖼️ GUI Showcase
 
@@ -76,25 +89,30 @@ graph TD
 ![Neural Anomaly Detection](assets/anomaly.png)
 *Detailed view of a triggered forensic hit pinpointed within a specific quadrant.*
 
+---
+
 ## ⚙️ Getting Started
 
 ### Prerequisites
 - Python 3.12+
 - Node.js 18+
+- [Google Cloud Project](https://console.cloud.google.com/) (for GCS/Firestore)
 - [Gemini API Key](https://aistudio.google.com/)
 
 ### Backend Setup
 1. `cd backend`
-2. `python -m venv venv && source venv/bin/activate`
-3. `pip install -r requirements.txt`
-4. Create `.env` using `.env.example`.
-5. `uvicorn main:app --reload`
+2. `pip install -r requirements.txt`
+3. Configure `.env` with `GEMINI_API_KEY` and `GOOGLE_CLOUD_PROJECT`.
+4. `uvicorn main:app --reload`
 
 ### Frontend Setup
 1. `cd frontend`
 2. `npm install`
-3. Create `.env.local` using `.env.local.example`.
+3. Configure `.env.local` with `NEXT_PUBLIC_API_URL`.
 4. `npm run dev`
+
+---
 
 ## ⚖️ License
 Distributed under the MIT License. See `LICENSE` for more information.
+

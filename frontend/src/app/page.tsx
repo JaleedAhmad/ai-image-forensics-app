@@ -1,6 +1,8 @@
 "use client";
 import { useState, useRef, useEffect } from 'react';
-import { analyzeImage } from '@/lib/api';
+import { analyzeImageStream } from '@/lib/api';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 export default function Home() {
   // Core State
@@ -9,7 +11,9 @@ export default function Home() {
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [scanStep, setScanStep] = useState(0);
+  const [liveSteps, setLiveSteps] = useState<any[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   
   // V6.0 Interactive Features State
   const [cooldown, setCooldown] = useState(0);
@@ -40,17 +44,7 @@ export default function Home() {
     }
   }, [cooldown]);
 
-  // Scanning Animation Logic
-  useEffect(() => {
-    let interval: any;
-    if (loading) {
-      setScanStep(0);
-      interval = setInterval(() => {
-        setScanStep((prev) => (prev < scanSteps.length - 1 ? prev + 1 : prev));
-      }, 1500);
-    }
-    return () => clearInterval(interval);
-  }, [loading]);
+  // Removed old fake Scanning Animation Logic
 
   // Bounding Box Logic
   useEffect(() => {
@@ -97,14 +91,40 @@ export default function Home() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0] || null;
-    setFile(selectedFile);
-    if (selectedFile) {
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0];
+      setFile(selectedFile);
       setPreviewUrl(URL.createObjectURL(selectedFile));
       setResult(null);
-      setError("");
-      setZoom({ scale: 1, x: 0, y: 0 });
+      setCaseId(null);
+      setLiveSteps([]);
       setSelectedOverlay(null);
+      resetZoom();
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const selectedFile = e.dataTransfer.files[0];
+      setFile(selectedFile);
+      setPreviewUrl(URL.createObjectURL(selectedFile));
+      setResult(null);
+      setCaseId(null);
+      setLiveSteps([]);
+      setSelectedOverlay(null);
+      resetZoom();
     }
   };
 
@@ -113,24 +133,36 @@ export default function Home() {
     setLoading(true);
     setError("");
     setResult(null);
+    setLiveSteps([]);
+    
     try {
-      const data = await analyzeImage(file);
-      setResult(data);
-      // Generate a stable case ID for this result to avoid hydration mismatch
-      setCaseId(`${data.verdict.substring(0,4)}-${Math.floor(Math.random()*9000)+1000}`);
-      
-      // Auto-select ELA as default overlay if available
-      if (data.evidence_images?.length > 0) {
-        setSelectedOverlay(data.evidence_images[0].url);
-      }
+      await analyzeImageStream(
+        file,
+        (step) => setLiveSteps((prev) => [...prev, step]),
+        (data) => {
+          setResult(data);
+          if (data.case_id) {
+            setCaseId(data.case_id);
+          } else {
+            setCaseId(`${data.verdict.substring(0,4)}-${Math.floor(Math.random()*9000)+1000}`);
+          }
+          if (data.evidence_images?.length > 0) {
+            setSelectedOverlay(data.evidence_images[0].url);
+          }
+          setLoading(false);
+        },
+        (errMsg) => {
+          if (errMsg.includes("429")) {
+            setError("QUOTA EXHAUSTED: System entering cooldown protocol.");
+            setCooldown(60);
+          } else {
+            setError(errMsg || "Forensic Error: Check data link.");
+          }
+          setLoading(false);
+        }
+      );
     } catch (err: any) {
-      if (err.message.includes("429")) {
-        setError("QUOTA EXHAUSTED: System entering cooldown protocol.");
-        setCooldown(60);
-      } else {
-        setError(err.message || "Forensic Error: Check data link.");
-      }
-    } finally {
+      setError("Initialization Error. Check console.");
       setLoading(false);
     }
   };
@@ -153,8 +185,74 @@ export default function Home() {
 
   const resetZoom = () => setZoom({ scale: 1, x: 0, y: 0 });
 
-  const handleExport = () => {
-    window.print();
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const html2pdf = (await import('html2pdf.js')).default;
+      const element = document.getElementById('report-template');
+      if (!element) throw new Error("Report template not found");
+
+      element.classList.remove('hidden');
+
+      const opt: any = {
+        margin:       10,
+        filename:     `Forensic-Case-${caseId}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      await html2pdf().set(opt).from(element).save();
+      
+      element.classList.add('hidden');
+    } catch (e) {
+      console.error("PDF Export failed", e);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDownloadZip = async () => {
+    if (!result) return;
+    try {
+      const zip = new JSZip();
+      
+      // Add JSON report
+      zip.file(`Case_${caseId}_Report.json`, JSON.stringify(result, null, 2));
+
+      // Download and add Original Image if available
+      if (result.original_image_url) {
+         try {
+           const res = await fetch(result.original_image_url);
+           const blob = await res.blob();
+           zip.file(`Case_${caseId}_Original.jpg`, blob);
+         } catch (e) {
+           console.error("Failed to download original image", e);
+         }
+      }
+
+      // Download and add all evidence images
+      if (result.evidence_images) {
+        const evidenceFolder = zip.folder("Evidence_Maps");
+        for (let i = 0; i < result.evidence_images.length; i++) {
+          const img = result.evidence_images[i];
+          try {
+            const res = await fetch(img.url);
+            const blob = await res.blob();
+            // Sanitize filename
+            const safeName = img.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            evidenceFolder?.file(`${safeName}.jpg`, blob);
+          } catch (e) {
+            console.error(`Failed to download evidence image ${img.name}`, e);
+          }
+        }
+      }
+
+      const content = await zip.generateAsync({ type: "blob" });
+      saveAs(content, `Neural_Forensics_Archive_${caseId}.zip`);
+    } catch (e) {
+      console.error("ZIP Generation Failed", e);
+    }
   };
 
   return (
@@ -174,12 +272,27 @@ export default function Home() {
           </div>
           <div className="mt-6 md:mt-0 flex gap-4 print:hidden">
              {result && (
-               <button 
-                 onClick={handleExport}
-                 className="px-6 py-2 border border-slate-700 rounded-full font-mono text-[10px] hover:bg-slate-800 transition-colors uppercase tracking-widest"
-               >
-                 Export Report
-               </button>
+               <div className="flex gap-4">
+                 <button 
+                   onClick={handleDownloadZip}
+                   className="px-6 py-2 border border-slate-700 rounded-full font-mono text-[10px] hover:bg-slate-800 transition-colors uppercase tracking-widest text-slate-300 flex items-center"
+                 >
+                   <svg className="w-3 h-3 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> Download Archive
+                 </button>
+                 <button 
+                   onClick={handleExport}
+                   disabled={exporting}
+                   className={`px-6 py-2 border border-slate-700 rounded-full font-mono text-[10px] uppercase tracking-widest transition-colors flex items-center ${
+                     exporting ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'hover:bg-slate-800 text-white'
+                   }`}
+                 >
+                   {exporting ? (
+                     <><svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-cyan-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Generating...</>
+                   ) : (
+                     "Export PDF"
+                   )}
+                 </button>
+               </div>
              )}
              <div className="text-right font-mono text-[10px] text-slate-600 space-y-1 invisible md:visible">
                 <p>LATENCY: 38MS</p>
@@ -196,8 +309,12 @@ export default function Home() {
               
               {/* Visual Interrogation Area */}
               <div 
-                className="relative group overflow-hidden rounded-2xl border-2 border-slate-800 aspect-square bg-slate-950 flex items-center justify-center cursor-crosshair"
-                style={{ overflow: 'hidden' }}
+                className={`relative bg-slate-900/50 border-2 rounded-3xl overflow-hidden aspect-square flex items-center justify-center transition-all ${
+                  isDragging ? 'border-cyan-500 bg-cyan-950/20 shadow-[0_0_30px_rgba(6,182,212,0.2)]' : 'border-slate-800'
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
               >
                 {previewUrl ? (
                   <div 
@@ -235,9 +352,14 @@ export default function Home() {
                     />
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center space-y-4 text-slate-700">
-                    <svg className="w-16 h-16 opacity-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="0.5" d="M10 21h7a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v11m0 5l4.879-4.879m0 0a3 3 0 104.243-4.242 3 3 0 00-4.243 4.242z"></path></svg>
-                    <span className="text-[10px] font-mono tracking-[0.2em] uppercase">Booth-1: No Input</span>
+                  <div className="text-center p-8 pointer-events-none">
+                    <svg className={`w-16 h-16 mx-auto mb-4 transition-colors ${isDragging ? 'text-cyan-400' : 'text-slate-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <p className={`font-mono text-[10px] tracking-widest uppercase transition-colors ${isDragging ? 'text-cyan-400 font-bold' : 'text-slate-500'}`}>
+                      {isDragging ? "Drop Evidence Here" : "AWAITING VISUAL EVIDENCE"}
+                    </p>
+                    <p className="text-slate-600 text-[9px] mt-2 font-mono uppercase tracking-widest">Drag & Drop or use button below</p>
                   </div>
                 )}
                 
@@ -304,22 +426,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Progress Log */}
-            {loading && (
-              <div className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl space-y-3 font-mono text-[9px] animate-pulse">
-                <div className="flex justify-between items-center text-cyan-400">
-                  <span className="flex items-center"><span className="w-1.5 h-1.5 bg-cyan-500 rounded-full mr-2"></span>NEURAL PIPELINE ACTIVE</span>
-                  <span>{Math.round(((scanStep + 1) / scanSteps.length) * 100)}%</span>
-                </div>
-                <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-cyan-500" style={{ width: `${((scanStep + 1) / scanSteps.length) * 100}%` }}></div>
-                </div>
-                <div className="text-slate-500 italic flex justify-between">
-                   <span>LOG: {scanSteps[scanStep]}</span>
-                   <span className="animate-pulse">_PROCESSING</span>
-                </div>
-              </div>
-            )}
+            {/* Fake Progress Log Removed - Replaced by Live Stream */}
 
             {error && (
               <div className="bg-red-950/20 border border-red-900/50 p-4 rounded-xl flex items-center text-red-500 text-[10px] font-mono">
@@ -331,7 +438,7 @@ export default function Home() {
           {/* RIGHT: Intelligence Report */}
           <section className="lg:col-span-7 space-y-12">
             
-            {!result && !loading && (
+            {!result && !loading && liveSteps.length === 0 && (
               <div className="h-full hidden md:flex items-center justify-center border border-dashed border-slate-900 rounded-3xl p-12 text-center opacity-20">
                 <div className="space-y-6">
                   <div className="relative inline-block">
@@ -341,6 +448,44 @@ export default function Home() {
                   <p className="text-xs font-mono tracking-[0.3em] uppercase">Neural Interrogator Idle</p>
                 </div>
               </div>
+            )}
+
+            {/* LIVE REASONING STREAM */}
+            {liveSteps.length > 0 && (
+                <div className="space-y-6 animate-in fade-in duration-500">
+                  <h3 className="text-[10px] font-black text-cyan-500 uppercase tracking-[0.3em] flex items-center px-2">
+                    <span className="w-2 h-0.5 bg-cyan-500 mr-4 shadow-[0_0_5px_cyan]"></span>
+                    Investigation Reasoning Chain
+                  </h3>
+                  <div className="space-y-4">
+                    {liveSteps.map((step: any, idx: number) => (
+                      <div key={idx} className="bg-slate-900/40 border border-slate-800 p-4 rounded-xl font-mono text-[11px] relative overflow-hidden group animate-in slide-in-from-right-4 fade-in duration-300">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500/30 group-hover:bg-cyan-500 transition-colors"></div>
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-cyan-400 font-bold uppercase tracking-tighter">Step 0{idx + 1}: {step.action}</span>
+                          <span className="text-slate-600 text-[9px] uppercase">Interrogator_Logic</span>
+                        </div>
+                        <p className="text-slate-300 italic mb-2">"{step.thought}"</p>
+                        {step.observation && (
+                          <div className="bg-slate-950/80 p-3 rounded-lg border border-slate-800/50 text-emerald-500/80">
+                            <span className="text-[9px] font-bold uppercase text-slate-600 block mb-1">Observation:</span>
+                            {step.observation}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {loading && (
+                      <div className="flex items-center text-[10px] text-cyan-500 font-mono px-4 space-x-2">
+                        <span className="animate-pulse">_Awaiting neural response</span>
+                        <span className="flex space-x-1 items-end h-3">
+                          <span className="animate-bounce w-1 h-1 bg-cyan-500 rounded-full" style={{ animationDelay: '0ms' }}></span>
+                          <span className="animate-bounce w-1 h-1 bg-cyan-500 rounded-full" style={{ animationDelay: '150ms' }}></span>
+                          <span className="animate-bounce w-1 h-1 bg-cyan-500 rounded-full" style={{ animationDelay: '300ms' }}></span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
             )}
 
             {result && (
@@ -406,6 +551,8 @@ export default function Home() {
                   </div>
                 </div>
 
+                {/* AGENT REASONING CHAIN REMOVED FROM HERE - RENDERED ABOVE */}
+
                 {/* INTERACTIVE FINDINGS */}
                 <div className="space-y-5 print:mt-10">
                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] px-2">Anomalous Artifacts Detected</h3>
@@ -454,12 +601,59 @@ export default function Home() {
 
       </div>
       
-      {/* Print-specific header for PDF export */}
-      <div className="hidden print:block fixed top-0 right-0 p-8 text-[10px] font-mono text-right border-l-2 border-slate-200">
-         <p className="font-bold">FORENSIC CASE REPORT</p>
-         <p>ID: {caseId}</p>
-         <p>STATUS: CLOSED_INVESTIGATION</p>
-      </div>
+      {/* Hidden Print Template for html2pdf.js */}
+      {result && (
+        <div id="report-template" className="hidden bg-white text-black p-8 font-sans w-[800px]">
+          <div className="border-b-4 border-black pb-4 mb-8 flex justify-between items-end">
+            <div>
+              <h1 className="text-4xl font-black italic tracking-tighter uppercase">Neural Forensics</h1>
+              <p className="text-xs font-mono font-bold mt-1 tracking-widest">OFFICIAL CASE REPORT</p>
+            </div>
+            <div className="text-right font-mono text-xs">
+              <p>ID: {caseId}</p>
+              <p>DATE: {new Date().toLocaleDateString()}</p>
+            </div>
+          </div>
+          
+          <div className="flex gap-8 mb-8">
+             <div className="w-1/2">
+               <div className="bg-slate-100 border-2 border-black aspect-square flex items-center justify-center p-2">
+                 <img src={previewUrl!} className="max-w-full max-h-full object-contain" />
+               </div>
+               <p className="text-center font-mono text-[10px] mt-2 font-bold">EXHIBIT A: SOURCE IMAGE</p>
+             </div>
+             <div className="w-1/2 flex flex-col justify-center">
+                <div className="mb-6">
+                  <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500 border-b border-slate-300 mb-2">Final Verdict</p>
+                  <h2 className="text-3xl font-black uppercase">{result.verdict}</h2>
+                </div>
+                <div>
+                  <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500 border-b border-slate-300 mb-2">Confidence</p>
+                  <h2 className="text-2xl font-bold uppercase">{result.confidence_level}</h2>
+                </div>
+             </div>
+          </div>
+
+          <div className="mb-8">
+             <h3 className="text-sm font-black uppercase tracking-widest border-b-2 border-black pb-2 mb-4">Integrity Summation</h3>
+             <p className="text-sm leading-relaxed text-justify">{result.explanation}</p>
+          </div>
+
+          <div>
+             <h3 className="text-sm font-black uppercase tracking-widest border-b-2 border-black pb-2 mb-4">Forensic Evidence Catalog</h3>
+             <div className="grid grid-cols-2 gap-4">
+                {result.evidence_images?.map((img: any, idx: number) => (
+                   <div key={idx} className="border border-slate-300 p-2">
+                     <div className="aspect-square bg-slate-100 flex items-center justify-center mb-2">
+                       <img src={img.url} className="max-w-full max-h-full object-contain" />
+                     </div>
+                     <p className="font-mono text-[9px] font-bold text-center uppercase">{img.name}</p>
+                   </div>
+                ))}
+             </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
