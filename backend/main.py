@@ -71,7 +71,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "https://*.vercel.app",
-        "YOUR_EXACT_VERCEL_URL_HERE"
+        "https://ai-image-forensics-app.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
