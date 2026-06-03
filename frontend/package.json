@@ -10,8 +10,10 @@
   },
   "dependencies": {
     "file-saver": "^2.0.5",
+    "framer-motion": "^12.40.0",
     "html2pdf.js": "^0.14.0",
     "jszip": "^3.10.1",
+    "lucide-react": "^1.17.0",
     "next": "16.0.10",
     "react": "19.2.1",
     "react-dom": "19.2.1"

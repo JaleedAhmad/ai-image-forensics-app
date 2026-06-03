@@ -44,3 +44,15 @@ yarn-error.log*
 # Other
 transfer_notes.md
 *.tmp
+
+# Additional rules from audit
+*.pyo
+.venv/
+*.egg-info/
+dist/
+.vscode/
+.idea/
+*.swp
+uploads/
+*.zip
+evidence_maps/

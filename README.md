@@ -1,4 +1,4 @@
-# 🕵️ NEURAL FORENSICS V6.0
+# 🕵️ NEURAL FORENSICS V7.0
 
 [![Project License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Next.js](https://img.shields.io/badge/frontend-Next.js%2016-black)](https://nextjs.org/)
@@ -33,30 +33,33 @@ A premium, agentic AI forensic suite designed to interrogate digital imagery for
 - **CV Pipeline**: OpenCV (Canny Edge), Pillow (ELA & Tiling).
 - **Storage**: Google Cloud Storage (Evidence Hosting) & Firestore (Case Management).
 
-### AI Core (Neural Logic)
-- **Models**: [Google Gemini 2.0/2.5 Flash](https://aistudio.google.com/)
-- **Paradigm**: Agentic Multi-Step Reasoning (Expert Panel -> Supreme Judge).
+### AI Core (Multi-Agent Forensics)
+| Agent Role | Model Provider | Key Responsibilities |
+| :--- | :--- | :--- |
+| **Agent A: Metadata & Compression** | Google Gemini 2.0 Flash | ELA heatmaps, compression anomalies, file signatures. |
+| **Agent B: Semantic Auditor** | Groq (Llama 4 Scout) | Lighting consistency, geometry, edge map anomalies. |
+| **Agent C: Forensic Arbitrator** | Cerebras (Llama 3.1 70B) | Verdict synthesis, conflict resolution, calibration. |
 
 ---
 
 ## 📊 System Architecture
 
-The following diagram illustrates the agentic data flow within the V6.0 pipeline.
+The following diagram illustrates the agentic data flow within the V7.0 multi-agent pipeline.
 
 ```mermaid
 graph TD
     A[Image Upload] --> B[Next.js Dashboard]
-    B --> C[FastAPI Engine]
+    B --> C[FastAPI Provider Router]
     
-    subgraph "Forensic Pipeline"
-        C --> D1[Metadata Scan]
-        C --> D2[ELA Map Generation]
-        C --> D3[Expert Panel Reasoning]
-        C --> D4[Supreme Judge Verdict]
+    subgraph "Multi-Agent Forensics Pipeline"
+        C -->|Parallel Execution| D1[Agent A: Metadata Analyst <br> Gemini 2.0 Flash]
+        C -->|Parallel Execution| D2[Agent B: Semantic Auditor <br> Llama 4 Scout]
+        D1 --> D3[Agent C: Forensic Arbitrator <br> Llama 3.1 70B]
+        D2 --> D3
     end
     
-    D1 & D2 & D3 & D4 --> E[Streaming Response]
-    E --> F[Interactive Dashboard]
+    D1 & D2 & D3 --> E[SSE Streaming]
+    E --> F[Agent Consensus Dashboard]
     
     subgraph "Persistent Layer"
         C --> G[GCS - Evidence Maps]
@@ -98,6 +101,8 @@ graph TD
 - Node.js 18+
 - [Google Cloud Project](https://console.cloud.google.com/) (for GCS/Firestore)
 - [Gemini API Key](https://aistudio.google.com/)
+- [Groq API Key](https://console.groq.com)
+- [Cerebras API Key](https://cloud.cerebras.ai)
 
 ### Backend Setup
 1. `cd backend`

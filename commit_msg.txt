@@ -1,0 +1,11 @@
+feat: Neural Forensics V7.0 — multi-agent forensic pipeline
+
+- Replace single Gemini call with 3-agent parallel pipeline
+- Agent A: Gemini Flash (ELA + metadata analysis)
+- Agent B: Groq Llama 4 Scout (semantic + geometry audit)
+- Agent C: Cerebras Arbitrator (verdict synthesis, text only)
+- Add provider_router.py with 3-tier failover logic
+- Add AgentConsensusPanel and ProviderStatusBar components
+- Add shared AgentReport/FinalVerdict Pydantic schema
+- Wire SSE streaming for multi-agent stage events
+- Clean up codebase, standardize structure
