@@ -107,7 +107,7 @@ graph TD
 ### Backend Setup
 1. `cd backend`
 2. `pip install -r requirements.txt`
-3. Configure `.env` with `GEMINI_API_KEY` and `GOOGLE_CLOUD_PROJECT`.
+3. Configure `.env` with `GEMINI_API_KEY`, `GROQ_API_KEY`, `CEREBRAS_API_KEY`, and `GOOGLE_CLOUD_PROJECT`.
 4. `uvicorn main:app --reload`
 
 ### Frontend Setup
@@ -115,6 +115,14 @@ graph TD
 2. `npm install`
 3. Configure `.env.local` with `NEXT_PUBLIC_API_URL`.
 4. `npm run dev`
+
+---
+
+## 🌐 Deployment
+
+Neural Forensics V7.0 is configured for zero-cost cloud deployment:
+- **Backend (Render)**: Utilizes `render.yaml` for containerless Python deployment. Requires `PYTHON_VERSION=3.12.3` and the 4 API keys in the environment.
+- **Frontend (Vercel)**: Next.js frontend deployed seamlessly via Vercel. Connects to the backend via the `NEXT_PUBLIC_API_URL` environment variable and `vercel.json` rewrite rules to handle CORS and routing.
 
 ---
 
