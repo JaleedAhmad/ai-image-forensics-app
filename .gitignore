@@ -56,3 +56,4 @@ dist/
 uploads/
 *.zip
 evidence_maps/
+backend/testenv/

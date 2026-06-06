@@ -113,16 +113,16 @@ graph TD
 ### Frontend Setup
 1. `cd frontend`
 2. `npm install`
-3. Configure `.env.local` with `NEXT_PUBLIC_API_URL`.
+3. Configure `.env.local` with `NEXT_PUBLIC_HF_API_URL`.
 4. `npm run dev`
 
 ---
 
 ## 🌐 Deployment
 
-Neural Forensics V7.0 is configured for zero-cost cloud deployment:
-- **Backend (Render)**: Utilizes `render.yaml` for containerless Python deployment. Requires `PYTHON_VERSION=3.12.3` and the 4 API keys in the environment.
-- **Frontend (Vercel)**: Next.js frontend deployed seamlessly via Vercel. Connects to the backend via the `NEXT_PUBLIC_API_URL` environment variable and `vercel.json` rewrite rules to handle CORS and routing.
+Neural Forensics V7.0 is configured for decoupled cloud deployment:
+- **Backend (Hugging Face Spaces)**: Utilizes a dedicated `Dockerfile` (Docker SDK) to spin up the Python 3.12 environment. Requires `GOOGLE_APPLICATION_CREDENTIALS` (JSON), plus the `GEMINI`, `GROQ`, and `CEREBRAS` API keys mapped as Secrets.
+- **Frontend (Vercel)**: Next.js frontend deployed seamlessly via Vercel. Connects directly to the backend via the `NEXT_PUBLIC_HF_API_URL` environment variable to ensure real-time multi-agent reasoning streams aren't buffered or timed out by serverless proxies.
 
 ---
 
