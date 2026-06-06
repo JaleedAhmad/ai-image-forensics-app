@@ -1,3 +1,12 @@
+---
+title: Neural Forensics
+emoji: 🕵️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_file: backend/main.py
+pinned: false
+---
 # 🕵️ NEURAL FORENSICS V7.0
 
 [![Project License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
