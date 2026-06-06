@@ -4,7 +4,8 @@ import ShareButton from "./ShareButton";
 
 // Helper to fetch the case
 async function getCase(id: string) {
-  const baseUrl = "https://forensics-backend-1034457982605.us-central1.run.app";
+  const rawBaseUrl = process.env.NEXT_PUBLIC_HF_API_URL || "http://localhost:8000";
+  const baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
   const res = await fetch(`${baseUrl}/cases/${id}`, { cache: "no-store" });
   if (!res.ok) return null;
   return res.json();

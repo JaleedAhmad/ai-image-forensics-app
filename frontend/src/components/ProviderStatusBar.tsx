@@ -22,7 +22,9 @@ export default function ProviderStatusBar() {
   useEffect(() => {
     const fetchHealth = async () => {
       try {
-        const res = await fetch("http://localhost:8000/health");
+        const rawBaseUrl = process.env.NEXT_PUBLIC_HF_API_URL || "http://localhost:8000";
+        const baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
+        const res = await fetch(`${baseUrl}/health`);
         if (res.ok) {
           const data = await res.json();
           setHealth(data);

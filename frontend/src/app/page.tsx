@@ -609,7 +609,7 @@ export default function Home() {
                   {loading && (
                     <div className="flex items-center text-[10px] text-cyan-500 font-mono px-4 space-x-2">
                       <span className="animate-pulse">
-                        _Awaiting neural response
+                        _Awaiting neural response (Waking up core... this may take 1-2 minutes if sleeping)
                       </span>
                       <span className="flex space-x-1 items-end h-3">
                         <span

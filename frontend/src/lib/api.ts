@@ -7,7 +7,7 @@ export async function analyzeImageStream(
   const formData = new FormData();
   formData.append("file", file);
 
-  const rawBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const rawBaseUrl = process.env.NEXT_PUBLIC_HF_API_URL || "http://localhost:8000";
   const baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
   const endpoint = `${baseUrl}/analyze_image/`;
 
