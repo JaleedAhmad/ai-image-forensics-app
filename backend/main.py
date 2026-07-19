@@ -19,7 +19,6 @@ from fastapi.responses import StreamingResponse
 
 from google import genai
 from google.genai import types
-from google.cloud import firestore
 from google.cloud import storage
 
 load_dotenv()
@@ -37,13 +36,6 @@ if GEMINI_API_KEY:
 else:
     logger.warning("GEMINI_API_KEY not found in environment.")
     client = None
-
-# Initialize Firestore DB
-try:
-    db = firestore.Client(project=PROJECT_ID)
-except Exception as e:
-    logger.warning(f"Failed to initialize Firestore: {e}")
-    db = None
 
 # Initialize GCS
 try:
@@ -280,26 +272,9 @@ async def analyze_image(file: UploadFile = File(...)):
 
             final_verdict = await run_agent_c(report_a, report_b)
 
-            # Persist to Firestore
-            if db is not None:
-                try:
-                    orig_url = upload_to_gcs(
-                        image_bytes, f"{case_id}-original.jpg", file.content_type
-                    )
-                    doc_data = {
-                        "case_id": case_id,
-                        "verdict": final_verdict.verdict,
-                        "confidence": final_verdict.confidence,
-                        "final_verdict_data": final_verdict.model_dump(),
-                        "evidence_images": [
-                            img.model_dump() for img in evidence_images
-                        ],
-                        "original_image_url": orig_url,
-                        "created_at": firestore.SERVER_TIMESTAMP,
-                    }
-                    db.collection("forensic_cases").document(case_id).set(doc_data)
-                except Exception as e:
-                    logger.error(f"Error saving to Firestore: {e}")
+            orig_url = upload_to_gcs(
+                image_bytes, f"{case_id}-original.jpg", file.content_type
+            )
 
             payload_data = final_verdict.model_dump()
             payload_data["case_id"] = case_id
@@ -341,28 +316,4 @@ async def analyze_image(file: UploadFile = File(...)):
 
 @app.get("/cases/{case_id}", response_model=ForensicAnalysisResult)
 def get_case(case_id: str):
-    if db is None:
-        raise HTTPException(status_code=503, detail="Database not initialized.")
-
-    doc_ref = db.collection("forensic_cases").document(case_id)
-    doc = doc_ref.get()
-
-    if not doc.exists:
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    data = doc.to_dict()
-
-    # Reconstruct perfectly
-    return ForensicAnalysisResult(
-        case_id=data.get("case_id", case_id),
-        verdict=data.get("verdict", "Unknown"),
-        confidence_level=data.get("confidence_level", "Low"),
-        explanation=data.get("explanation", ""),
-        detailed_findings=[
-            ForensicFinding(**f) for f in data.get("detailed_findings", [])
-        ],
-        evidence_images=[
-            ForensicEvidence(**img) for img in data.get("evidence_images", [])
-        ],
-        reasoning_steps=[],
-    )
+    raise HTTPException(status_code=503, detail="Database not initialized (Firestore disabled).")

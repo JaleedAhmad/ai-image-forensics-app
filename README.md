@@ -14,7 +14,7 @@ pinned: false
 [![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688)](https://fastapi.tiangolo.com/)
 [![Gemini](https://img.shields.io/badge/AI-Google%20Gemini%202.5-vibrant)](https://aistudio.google.com/)
 
-A premium, agentic AI forensic suite designed to interrogate digital imagery for signs of manipulation, generation, and enhancement. Utilizing an **8-stage automated inspection pipeline** and a **dual-track reasoning system**, the suite provides high-confidence verdicts backed by visual evidence and a transparent reasoning chain.
+A premium, agentic AI forensic suite designed to interrogate digital imagery for signs of manipulation, generation, and enhancement. Utilizing a **4-stage automated inspection pipeline** and a **multi-agent reasoning system**, the suite provides high-confidence verdicts backed by visual evidence and a transparent reasoning chain.
 
 ---
 
@@ -40,14 +40,14 @@ A premium, agentic AI forensic suite designed to interrogate digital imagery for
 ### Backend (Forensic Engine)
 - **Core**: [FastAPI](https://fastapi.tiangolo.com/) (Python 3.12+)
 - **CV Pipeline**: OpenCV (Canny Edge), Pillow (ELA & Tiling).
-- **Storage**: Google Cloud Storage (Evidence Hosting) & Firestore (Case Management).
+- **Storage**: Google Cloud Storage (Evidence Hosting). (Firestore connection removed)
 
 ### AI Core (Multi-Agent Forensics)
 | Agent Role | Model Provider | Key Responsibilities |
 | :--- | :--- | :--- |
-| **Agent A: Metadata & Compression** | Google Gemini 2.0 Flash | ELA heatmaps, compression anomalies, file signatures. |
+| **Agent A: Metadata & Compression** | Google Gemini 2.5 Flash | ELA heatmaps, compression anomalies, file signatures. |
 | **Agent B: Semantic Auditor** | Groq (Llama 4 Scout) | Lighting consistency, geometry, edge map anomalies. |
-| **Agent C: Forensic Arbitrator** | Cerebras (Llama 3.1 70B) | Verdict synthesis, conflict resolution, calibration. |
+| **Agent C: Forensic Arbitrator** | Cerebras (GLM 4.7) | Verdict synthesis, conflict resolution, calibration. |
 
 ---
 
@@ -61,9 +61,9 @@ graph TD
     B --> C[FastAPI Provider Router]
     
     subgraph "Multi-Agent Forensics Pipeline"
-        C -->|Parallel Execution| D1[Agent A: Metadata Analyst <br> Gemini 2.0 Flash]
+        C -->|Parallel Execution| D1[Agent A: Metadata Analyst <br> Gemini 2.5 Flash]
         C -->|Parallel Execution| D2[Agent B: Semantic Auditor <br> Llama 4 Scout]
-        D1 --> D3[Agent C: Forensic Arbitrator <br> Llama 3.1 70B]
+        D1 --> D3[Agent C: Forensic Arbitrator <br> GLM 4.7]
         D2 --> D3
     end
     
@@ -72,7 +72,6 @@ graph TD
     
     subgraph "Persistent Layer"
         C --> G[GCS - Evidence Maps]
-        C --> H[Firestore - Case History]
     end
 ```
 
@@ -108,7 +107,7 @@ graph TD
 ### Prerequisites
 - Python 3.12+
 - Node.js 18+
-- [Google Cloud Project](https://console.cloud.google.com/) (for GCS/Firestore)
+- [Google Cloud Project](https://console.cloud.google.com/) (for GCS)
 - [Gemini API Key](https://aistudio.google.com/)
 - [Groq API Key](https://console.groq.com)
 - [Cerebras API Key](https://cloud.cerebras.ai)
