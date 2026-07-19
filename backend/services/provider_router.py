@@ -117,14 +117,20 @@ async def _fallback_agent_a_on_groq(
         return report
     except Exception as e:
         import groq
+        import traceback
+        full_traceback = traceback.format_exc()
+        
         if isinstance(e, groq.APIStatusError) and hasattr(e, 'response'):
-            logger.error(f"Fallback Agent A on Groq failed with API error: {e}. RAW RESPONSE: {e.response.text}")
+            logger.error(f"Fallback Agent A on Groq failed with API error: {e}. RAW RESPONSE: {e.response.text}\nTraceback:\n{full_traceback}")
+            error_repr = f"{type(e).__name__}: {e}"
         else:
-            logger.error(f"Fallback Agent A on Groq failed: {e}")
+            logger.error(f"Fallback Agent A on Groq failed: {e}\nTraceback:\n{full_traceback}")
+            error_repr = f"{type(e).__name__}: {str(e) or 'Empty error string (likely Timeout)'}"
+            
         finding = AgentFinding(
             type="agent_failure",
             severity="critical",
-            description=f"Fallback failed: {e}",
+            description=f"Fallback failed: {error_repr}",
             location=None,
         )
         return AgentReport(

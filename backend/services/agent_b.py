@@ -119,12 +119,16 @@ async def run_agent_b(
         return report
 
     except Exception as e:
-        logger.error(f"Agent B encountered a total failure: {e}")
+        import traceback
+        full_traceback = traceback.format_exc()
+        logger.error(f"Agent B encountered a total failure: {e}\nTraceback:\n{full_traceback}")
+        
+        error_repr = f"{type(e).__name__}: {str(e) or 'Empty error string (likely Timeout)'}"
         # On total failure return a degraded AgentReport with confidence: 0.0
         finding = AgentFinding(
             type="agent_failure",
             severity="critical",
-            description=f"Agent B failed to generate a valid report: {str(e)}",
+            description=f"Agent B failed to generate a valid report: {error_repr}",
             location=None,
         )
         return AgentReport(
