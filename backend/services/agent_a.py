@@ -5,7 +5,7 @@ import asyncio
 from typing import Dict, Any
 from google import genai
 from google.genai import types
-from models.agent_schema import AgentReport, AgentFinding
+from models.agent_schema import AgentReport, AgentFinding, SceneProfile
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ Severity guide:
 
 
 async def run_agent_a(
-    original_image_bytes: bytes, ela_image_bytes: bytes, metadata: dict
+    original_image_bytes: bytes, ela_image_bytes: bytes, metadata: dict, scene_profile: SceneProfile
 ) -> AgentReport:
     model_name = "gemini-2.5-flash"
     client = genai.Client(
@@ -36,7 +36,7 @@ async def run_agent_a(
     parts = [
         types.Part.from_bytes(data=original_image_bytes, mime_type="image/jpeg"),
         types.Part.from_bytes(data=ela_image_bytes, mime_type="image/jpeg"),
-        f"Original Image Metadata:\n{json.dumps(metadata, indent=2)}\n\nPlease provide your analysis.",
+        f"Scene Context Profile (from Agent 0):\n{scene_profile.model_dump_json(indent=2)}\n\nOriginal Image Metadata:\n{json.dumps(metadata, indent=2)}\n\nPlease provide your analysis.",
     ]
 
     try:

@@ -229,6 +229,16 @@ async def analyze_image(file: UploadFile = File(...)):
 
             await send_event(
                 {
+                    "stage": "agent_0_profiling",
+                    "message": "Scene Profiler extracting visual context...",
+                }
+            )
+
+            from services.agent_0 import run_agent_0
+            scene_profile = await run_agent_0(image_bytes)
+
+            await send_event(
+                {
                     "stage": "agent_a_thinking",
                     "message": "Metadata analyst examining compression layers...",
                 }
@@ -251,7 +261,7 @@ async def analyze_image(file: UploadFile = File(...)):
                 metadata["scan_result"] = metadata_finding
 
             report_a, report_b = await run_vision_agents(
-                image_bytes, ela_bytes, edge_bytes, metadata
+                image_bytes, ela_bytes, edge_bytes, metadata, scene_profile
             )
 
             await send_event(
@@ -270,7 +280,7 @@ async def analyze_image(file: UploadFile = File(...)):
 
             from services.agent_c import run_agent_c
 
-            final_verdict = await run_agent_c(report_a, report_b)
+            final_verdict = await run_agent_c(report_a, report_b, scene_profile)
 
             orig_url = upload_to_gcs(
                 image_bytes, f"{case_id}-original.jpg", file.content_type

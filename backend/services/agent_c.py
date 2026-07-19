@@ -4,7 +4,7 @@ import logging
 import asyncio
 from openai import AsyncOpenAI
 from groq import AsyncGroq
-from models.agent_schema import AgentReport, FinalVerdict, AgentFinding
+from models.agent_schema import AgentReport, FinalVerdict, AgentFinding, SceneProfile
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ async def _call_groq_fallback(messages: list) -> FinalVerdict:
     return verdict
 
 
-async def run_agent_c(report_a: AgentReport, report_b: AgentReport) -> FinalVerdict:
+async def run_agent_c(report_a: AgentReport, report_b: AgentReport, scene_profile: SceneProfile) -> FinalVerdict:
     model_name = "zai-glm-4.7"
     client = AsyncOpenAI(
         base_url="https://api.cerebras.ai/v1",
@@ -71,7 +71,7 @@ async def run_agent_c(report_a: AgentReport, report_b: AgentReport) -> FinalVerd
         {"role": "system", "content": SYSTEM_PROMPT},
         {
             "role": "user",
-            "content": f"Agent A Report:\n{report_a_json}\n\nAgent B Report:\n{report_b_json}\n\nPlease provide your final verdict as a JSON object matching the FinalVerdict schema:\n{json.dumps(FinalVerdict.model_json_schema(), indent=2)}",
+            "content": f"Scene Context Profile (from Agent 0):\n{scene_profile.model_dump_json(indent=2)}\n\nAgent A Report:\n{report_a_json}\n\nAgent B Report:\n{report_b_json}\n\nPlease provide your final verdict as a JSON object matching the FinalVerdict schema:\n{json.dumps(FinalVerdict.model_json_schema(), indent=2)}",
         },
     ]
 

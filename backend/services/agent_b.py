@@ -3,7 +3,7 @@ import base64
 import logging
 import asyncio
 from groq import AsyncGroq
-from models.agent_schema import AgentReport, AgentFinding
+from models.agent_schema import AgentReport, AgentFinding, SceneProfile
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ async def _call_groq(
 
 
 async def run_agent_b(
-    original_image_bytes: bytes, edge_map_bytes: bytes
+    original_image_bytes: bytes, edge_map_bytes: bytes, scene_profile: SceneProfile
 ) -> AgentReport:
     model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 
@@ -62,7 +62,7 @@ async def run_agent_b(
             "content": [
                 {
                     "type": "text",
-                    "text": f"Analyze these images (original and edge map) and return your report strictly as a JSON object matching this schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}",
+                    "text": f"Scene Context Profile (from Agent 0):\n{scene_profile.model_dump_json(indent=2)}\n\nAnalyze these images (original and edge map) and return your report strictly as a JSON object matching this schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}",
                 },
                 {
                     "type": "image_url",

@@ -10,7 +10,7 @@ from groq import AsyncGroq
 from google import genai
 from google.genai import types
 
-from models.agent_schema import AgentReport, AgentFinding
+from models.agent_schema import AgentReport, AgentFinding, SceneProfile
 from services.agent_a import run_agent_a, SYSTEM_PROMPT as AGENT_A_PROMPT
 from services.agent_b import run_agent_b, SYSTEM_PROMPT as AGENT_B_PROMPT
 
@@ -72,7 +72,7 @@ async def check_provider_health(provider: str) -> bool:
 
 
 async def _fallback_agent_a_on_groq(
-    original_bytes: bytes, ela_bytes: bytes, metadata: dict
+    original_bytes: bytes, ela_bytes: bytes, metadata: dict, scene_profile: SceneProfile
 ) -> AgentReport:
     model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
     client = AsyncGroq()
@@ -86,7 +86,7 @@ async def _fallback_agent_a_on_groq(
             "content": [
                 {
                     "type": "text",
-                    "text": f"Original Image Metadata:\n{json.dumps(metadata, indent=2)}\n\nPlease provide your analysis strictly as a JSON object matching this schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}",
+                    "text": f"Original Image Metadata:\n{json.dumps(metadata, indent=2)}\n\nScene Context Profile (from Agent 0):\n{scene_profile.model_dump_json(indent=2)}\n\nPlease provide your analysis strictly as a JSON object matching this schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}",
                 },
                 {
                     "type": "image_url",
@@ -137,7 +137,7 @@ async def _fallback_agent_a_on_groq(
 
 
 async def _fallback_agent_b_on_gemini(
-    original_bytes: bytes, edge_bytes: bytes
+    original_bytes: bytes, edge_bytes: bytes, scene_profile: SceneProfile
 ) -> AgentReport:
     model_name = "gemini-2.0-flash"
     client = genai.Client(
@@ -147,7 +147,7 @@ async def _fallback_agent_b_on_gemini(
     parts = [
         types.Part.from_bytes(data=original_bytes, mime_type="image/jpeg"),
         types.Part.from_bytes(data=edge_bytes, mime_type="image/jpeg"),
-        "Analyze these images (original and edge map) and return your report.",
+        f"Scene Context Profile (from Agent 0):\n{scene_profile.model_dump_json(indent=2)}\n\nAnalyze these images (original and edge map) and return your report.",
     ]
 
     try:
@@ -191,32 +191,32 @@ async def _fallback_agent_b_on_gemini(
 
 
 async def run_vision_agents(
-    original_bytes: bytes, ela_bytes: bytes, edge_bytes: bytes, metadata: dict
+    original_bytes: bytes, ela_bytes: bytes, edge_bytes: bytes, metadata: dict, scene_profile: SceneProfile
 ) -> Tuple[AgentReport, AgentReport]:
     gemini_health = await check_provider_health("gemini")
     groq_health = await check_provider_health("groq")
 
     task_a = (
-        run_agent_a(original_bytes, ela_bytes, metadata)
+        run_agent_a(original_bytes, ela_bytes, metadata, scene_profile)
         if gemini_health
-        else _fallback_agent_a_on_groq(original_bytes, ela_bytes, metadata)
+        else _fallback_agent_a_on_groq(original_bytes, ela_bytes, metadata, scene_profile)
     )
     task_b = (
-        run_agent_b(original_bytes, edge_bytes)
+        run_agent_b(original_bytes, edge_bytes, scene_profile)
         if groq_health
-        else _fallback_agent_b_on_gemini(original_bytes, edge_bytes)
+        else _fallback_agent_b_on_gemini(original_bytes, edge_bytes, scene_profile)
     )
 
     res_a, res_b = await asyncio.gather(task_a, task_b, return_exceptions=True)
 
     if isinstance(res_a, Exception):
         logger.error(f"Agent A primary failed: {res_a}")
-        res_a = await _fallback_agent_a_on_groq(original_bytes, ela_bytes, metadata)
+        res_a = await _fallback_agent_a_on_groq(original_bytes, ela_bytes, metadata, scene_profile)
         res_a.degraded_mode = True
 
     if isinstance(res_b, Exception):
         logger.error(f"Agent B primary failed: {res_b}")
-        res_b = await _fallback_agent_b_on_gemini(original_bytes, edge_bytes)
+        res_b = await _fallback_agent_b_on_gemini(original_bytes, edge_bytes, scene_profile)
         res_b.degraded_mode = True
 
     return res_a, res_b

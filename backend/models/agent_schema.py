@@ -9,6 +9,32 @@ class FindingLocation(BaseModel):
     h: float
 
 
+class VisibleText(BaseModel):
+    present: bool
+    transcription: str
+    text_context: str
+
+
+class SceneProfile(BaseModel):
+    medium: Literal[
+        "photograph", "digital_painting", "3d_render", "illustration", 
+        "anime_manga", "screenshot_ui", "screenshot_game", "scanned_print", 
+        "vector_graphic", "mixed_media", "unclear"
+    ]
+    medium_confidence: Literal["high", "medium", "low"]
+    medium_reasoning: str
+    subject_description: str
+    human_subjects_present: Optional[bool]
+    human_subject_notes: Optional[str]
+    lighting_and_physics_notes: str
+    stylistic_elements_that_mimic_flaws: List[str]
+    visible_text: VisibleText
+    setting: Literal["real_world_photographable", "fictional_or_impossible", "ambiguous"]
+    setting_notes: Optional[str]
+    image_quality_notes: str
+    flags_for_downstream_agents: str
+
+
 class AgentFinding(BaseModel):
     type: str
     severity: Literal["low", "medium", "high", "critical"]
