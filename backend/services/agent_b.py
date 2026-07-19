@@ -29,12 +29,18 @@ async def _call_groq(
     client: AsyncGroq, model_name: str, messages: list
 ) -> tuple[str, str]:
     logger.info(f"Calling Groq model: {model_name}")
-    response = await client.chat.completions.create(
-        model=model_name,
-        messages=messages,
-        response_format={"type": "json_object"},
-        temperature=0.0,
-    )
+    try:
+        response = await client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            response_format={"type": "json_object"},
+            temperature=0.0,
+        )
+    except Exception as e:
+        import groq
+        if isinstance(e, groq.APIStatusError) and hasattr(e, 'response'):
+            logger.error(f"Groq API Error in _call_groq: {e}. RAW RESPONSE: {e.response.text}")
+        raise e
 
     # Log actual model ID that responded
     actual_model = response.model

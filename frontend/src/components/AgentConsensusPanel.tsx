@@ -40,6 +40,7 @@ interface FinalVerdict {
 }
 
 interface AgentConsensusPanelProps {
+  sceneProfile?: any;
   agentAReport: AgentReport | null;
   agentBReport: AgentReport | null;
   finalVerdict: FinalVerdict | null;
@@ -47,6 +48,7 @@ interface AgentConsensusPanelProps {
 }
 
 export default function AgentConsensusPanel({
+  sceneProfile,
   agentAReport,
   agentBReport,
   finalVerdict,
@@ -159,6 +161,70 @@ export default function AgentConsensusPanel({
     );
   };
 
+  const SceneProfilerCard = ({
+    profile,
+    delay,
+  }: {
+    profile: any;
+    delay: number;
+  }) => {
+    const isDegraded = profile.medium === "unclear";
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay }}
+        className={`flex-1 bg-zinc-900/80 border ${isDegraded ? "border-amber-700/50 shadow-[0_0_15px_rgba(217,119,6,0.15)]" : "border-zinc-700/50 shadow-lg"} rounded-xl p-5 flex flex-col`}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            <div
+              className={`p-2 rounded-lg ${isDegraded ? "bg-amber-900/30 text-amber-500" : "bg-teal-900/30 text-teal-400"}`}
+            >
+              {isDegraded ? <AlertTriangle size={20} /> : <User size={20} />}
+            </div>
+            <h3 className="text-zinc-100 font-semibold">Scene Profiler</h3>
+          </div>
+          <span className="text-xs text-zinc-500 font-mono bg-zinc-950 px-2 py-1 rounded">
+            gemini-2.5-flash
+          </span>
+        </div>
+
+        <div className="flex items-end justify-between mb-6 pb-4 border-b border-zinc-800">
+          <div>
+            <p className="text-sm text-zinc-400 mb-1">Detected Medium</p>
+            <p className={`text-lg font-bold capitalize ${isDegraded ? "text-amber-500" : "text-zinc-100"}`}>
+              {profile.medium.replace("_", " ")}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-zinc-400 mb-1">Confidence</p>
+            <p className="text-xl font-mono text-emerald-400">
+              {profile.medium_confidence === "high" ? "High" : profile.medium_confidence === "medium" ? "Med" : "Low"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex-1">
+          <details className="mb-4 group">
+            <summary className="text-xs text-zinc-500 font-mono cursor-pointer hover:text-cyan-400 transition-colors list-none flex items-center">
+              <span className="w-2 h-2 rounded-full bg-cyan-500/50 mr-2 group-open:animate-pulse"></span>
+              View Internal Monologue
+            </summary>
+            <div className="mt-2 p-3 bg-zinc-950/50 border border-zinc-800 rounded-lg text-xs font-mono text-zinc-400 max-h-32 overflow-y-auto whitespace-pre-wrap">
+              Subject: {profile.subject_description}
+              {"\n\n"}
+              Visible Text: {profile.visible_text?.present ? profile.visible_text.transcription : "None"}
+              {"\n\n"}
+              Flags for downstream: {profile.flags_for_downstream_agents || "None"}
+            </div>
+          </details>
+        </div>
+      </motion.div>
+    );
+  };
+
   const getConsensusIcon = (consensus: string) => {
     switch (consensus) {
       case "full_agreement":
@@ -176,6 +242,13 @@ export default function AgentConsensusPanel({
     <div className="w-full space-y-8 mt-8">
       {/* Agents Row */}
       <div className="flex flex-col md:flex-row gap-6 relative">
+        {/* Agent 0 (Scene Profiler) Card */}
+        {sceneProfile ? (
+          <SceneProfilerCard profile={sceneProfile} delay={0.05} />
+        ) : (
+          <AgentSkeleton title="Scene Profiler" />
+        )}
+
         {/* Agent A Card */}
         {agentAReport ? (
           <AgentCard

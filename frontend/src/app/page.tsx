@@ -140,7 +140,17 @@ export default function Home() {
     try {
       await analyzeImageStream(
         file,
-        (step) => setLiveSteps((prev) => [...prev, step]),
+        (step) => setLiveSteps((prev) => {
+          if (step.replace_previous) {
+            const newSteps = [...prev];
+            const idx = newSteps.findIndex(s => s.stage === step.stage);
+            if (idx !== -1) {
+              newSteps[idx] = step;
+              return newSteps;
+            }
+          }
+          return [...prev, step];
+        }),
         (data) => {
           // Adapt new multi-agent format to support legacy UI features (bounding boxes, slider)
           const detailed_findings: any[] = [];
@@ -605,6 +615,17 @@ export default function Home() {
                       <p className="text-slate-300 italic mb-2">
                         "{step.message}"
                       </p>
+                      {step.details && (
+                        <details className="mt-2 group/details">
+                          <summary className="text-xs text-slate-500 font-mono cursor-pointer hover:text-cyan-400 transition-colors list-none flex items-center">
+                            <span className="w-2 h-2 rounded-full bg-cyan-500/50 mr-2 group-open/details:animate-pulse"></span>
+                            View Detail
+                          </summary>
+                          <div className="mt-2 p-3 bg-slate-950/50 border border-slate-800 rounded-lg text-xs font-mono text-slate-400 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                            {step.details}
+                          </div>
+                        </details>
+                      )}
                     </div>
                   ))}
                   {loading && (
@@ -635,6 +656,7 @@ export default function Home() {
             {(loading || result) && (
               <div className="mb-10">
                 <AgentConsensusPanel
+                  sceneProfile={result?.scene_profile || null}
                   agentAReport={result?.agent_a_report || null}
                   agentBReport={result?.agent_b_report || null}
                   finalVerdict={result}

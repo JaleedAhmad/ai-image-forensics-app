@@ -116,7 +116,11 @@ async def _fallback_agent_a_on_groq(
         report.agent = "metadata_analyst"
         return report
     except Exception as e:
-        logger.error(f"Fallback Agent A on Groq failed: {e}")
+        import groq
+        if isinstance(e, groq.APIStatusError) and hasattr(e, 'response'):
+            logger.error(f"Fallback Agent A on Groq failed with API error: {e}. RAW RESPONSE: {e.response.text}")
+        else:
+            logger.error(f"Fallback Agent A on Groq failed: {e}")
         finding = AgentFinding(
             type="agent_failure",
             severity="critical",
