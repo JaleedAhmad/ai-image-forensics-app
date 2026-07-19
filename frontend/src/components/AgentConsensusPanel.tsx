@@ -240,15 +240,17 @@ export default function AgentConsensusPanel({
 
   return (
     <div className="w-full space-y-8 mt-8">
-      {/* Agents Row */}
-      <div className="flex flex-col md:flex-row gap-6 relative">
-        {/* Agent 0 (Scene Profiler) Card */}
+      {/* Scene Profiler Row */}
+      <div className="w-full">
         {sceneProfile ? (
           <SceneProfilerCard profile={sceneProfile} delay={0.05} />
         ) : (
           <AgentSkeleton title="Scene Profiler" />
         )}
+      </div>
 
+      {/* Agents Row */}
+      <div className="flex flex-col md:flex-row gap-6 relative">
         {/* Agent A Card */}
         {agentAReport ? (
           <AgentCard
