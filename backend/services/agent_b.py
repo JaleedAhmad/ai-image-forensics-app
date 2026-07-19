@@ -46,7 +46,7 @@ async def _call_groq(
 async def run_agent_b(
     original_image_bytes: bytes, edge_map_bytes: bytes, scene_profile: SceneProfile
 ) -> AgentReport:
-    model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
+    model_name = "llama-3.3-70b-versatile"
 
     # Initialize the Groq client. Relies on GROQ_API_KEY environment variable.
     client = AsyncGroq()
