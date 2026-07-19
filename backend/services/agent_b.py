@@ -3,7 +3,7 @@ import base64
 import logging
 import asyncio
 from groq import AsyncGroq
-from models.agent_schema import AgentReport, AgentFinding, SceneProfile
+from models.agent_schema import AgentReport, AgentFinding, SceneProfile, to_strict_json_schema
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,14 @@ async def _call_groq(
         response = await client.chat.completions.create(
             model=model_name,
             messages=messages,
-            response_format={"type": "json_object"},
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "agent_report",
+                    "strict": True,
+                    "schema": to_strict_json_schema(AgentReport)
+                }
+            },
             temperature=0.0,
         )
     except Exception as e:
@@ -122,13 +129,12 @@ async def run_agent_b(
         import traceback
         full_traceback = traceback.format_exc()
         logger.error(f"Agent B encountered a total failure: {e}\nTraceback:\n{full_traceback}")
-        
-        error_repr = f"{type(e).__name__}: {str(e) or 'Empty error string (likely Timeout)'}"
+        error_msg = str(e) or f"{type(e).__name__} (no message)"
         # On total failure return a degraded AgentReport with confidence: 0.0
         finding = AgentFinding(
             type="agent_failure",
             severity="critical",
-            description=f"Agent B failed to generate a valid report: {error_repr}",
+            description=f"Agent B failed to generate a valid report: {error_msg}",
             location=None,
         )
         return AgentReport(

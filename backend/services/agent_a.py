@@ -53,20 +53,32 @@ async def run_agent_a(
                 ),
             )
 
-        # Timeout after 30 seconds
-        response = await asyncio.wait_for(call(), timeout=30.0)
+        async def _attempt() -> AgentReport:
+            response = await asyncio.wait_for(call(), timeout=60.0)
+            report = AgentReport.model_validate_json(response.text)
+            report.provider = model_name
+            report.agent = "metadata_analyst"
+            return report
 
-        report = AgentReport.model_validate_json(response.text)
-        report.provider = model_name
-        report.agent = "metadata_analyst"
-        return report
+        try:
+            return await _attempt()
+        except Exception as e:
+            logger.warning(
+                f"Agent A analysis failed on first attempt: {e}. Retrying."
+            )
+            await asyncio.sleep(2)
+            return await _attempt()
 
     except Exception as e:
-        logger.error(f"Agent A encountered a total failure: {e}")
+        import traceback
+        full_traceback = traceback.format_exc()
+        logger.error(f"Agent A encountered a total failure: {e}\nTraceback:\n{full_traceback}")
+        
+        error_msg = str(e) or f"{type(e).__name__} (no message)"
         finding = AgentFinding(
             type="agent_failure",
             severity="critical",
-            description=f"Agent A failed to generate a valid report: {str(e)}",
+            description=f"Agent A failed to generate a valid report: {error_msg}",
             location=None,
         )
         return AgentReport(

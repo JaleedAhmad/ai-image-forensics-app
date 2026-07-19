@@ -110,11 +110,13 @@ async def run_agent_c(report_a: AgentReport, report_b: AgentReport, scene_profil
         try:
             verdict = await asyncio.wait_for(_call_groq_fallback(messages), timeout=30.0)
         except Exception as fallback_e:
-            logger.error(f"Agent C Groq fallback also failed: {fallback_e}")
+            error_msg_e = str(e) or f"{type(e).__name__} (no message)"
+            error_msg_fallback = str(fallback_e) or f"{type(fallback_e).__name__} (no message)"
+            logger.error(f"Agent C Groq fallback also failed: {error_msg_fallback}")
             finding = AgentFinding(
                 type="arbitration_failure",
                 severity="critical",
-                description=f"Arbitrator experienced a total failure: {str(e)} | Fallback: {str(fallback_e)}",
+                description=f"Arbitrator experienced a total failure: {error_msg_e} | Fallback: {error_msg_fallback}",
                 location=None,
             )
             return FinalVerdict(
@@ -124,7 +126,7 @@ async def run_agent_c(report_a: AgentReport, report_b: AgentReport, scene_profil
                 consensus="conflict",
                 agent_a_report=report_a,
                 agent_b_report=report_b,
-                arbitrator_reasoning=f"Arbitrator experienced a total failure during evaluation: {str(e)}",
+                arbitrator_reasoning=f"Arbitrator experienced a total failure during evaluation: {error_msg_e}",
                 key_evidence=["Arbitration failure"],
                 artifact_locations=[finding],
                 providers_used=[model_name],

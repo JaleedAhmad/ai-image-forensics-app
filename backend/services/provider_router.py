@@ -10,7 +10,7 @@ from groq import AsyncGroq
 from google import genai
 from google.genai import types
 
-from models.agent_schema import AgentReport, AgentFinding, SceneProfile
+from models.agent_schema import AgentReport, AgentFinding, SceneProfile, to_strict_json_schema
 from services.agent_a import run_agent_a, SYSTEM_PROMPT as AGENT_A_PROMPT
 from services.agent_b import run_agent_b, SYSTEM_PROMPT as AGENT_B_PROMPT
 
@@ -106,7 +106,14 @@ async def _fallback_agent_a_on_groq(
             return await client.chat.completions.create(
                 model=model_name,
                 messages=messages,
-                response_format={"type": "json_object"},
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "agent_report",
+                        "strict": True,
+                        "schema": to_strict_json_schema(AgentReport)
+                    }
+                },
                 temperature=0.0,
             )
 
@@ -122,15 +129,15 @@ async def _fallback_agent_a_on_groq(
         
         if isinstance(e, groq.APIStatusError) and hasattr(e, 'response'):
             logger.error(f"Fallback Agent A on Groq failed with API error: {e}. RAW RESPONSE: {e.response.text}\nTraceback:\n{full_traceback}")
-            error_repr = f"{type(e).__name__}: {e}"
+            error_msg = str(e) or f"{type(e).__name__} (no message)"
         else:
             logger.error(f"Fallback Agent A on Groq failed: {e}\nTraceback:\n{full_traceback}")
-            error_repr = f"{type(e).__name__}: {str(e) or 'Empty error string (likely Timeout)'}"
+            error_msg = str(e) or f"{type(e).__name__} (no message)"
             
         finding = AgentFinding(
             type="agent_failure",
             severity="critical",
-            description=f"Fallback failed: {error_repr}",
+            description=f"Fallback failed: {error_msg}",
             location=None,
         )
         return AgentReport(
