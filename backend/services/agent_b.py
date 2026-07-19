@@ -3,7 +3,7 @@ import base64
 import logging
 import asyncio
 from groq import AsyncGroq
-from models.agent_schema import AgentReport, AgentFinding, SceneProfile, to_strict_json_schema
+from models.agent_schema import AgentReport, AgentFinding, SceneProfile
 
 logger = logging.getLogger(__name__)
 
@@ -33,14 +33,7 @@ async def _call_groq(
         response = await client.chat.completions.create(
             model=model_name,
             messages=messages,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "agent_report",
-                    "strict": True,
-                    "schema": to_strict_json_schema(AgentReport)
-                }
-            },
+            response_format={"type": "json_object"},
             temperature=0.0,
         )
     except Exception as e:
@@ -106,7 +99,7 @@ async def run_agent_b(
                 {"role": "assistant", "content": text_response},
                 {
                     "role": "user",
-                    "content": f"The previous response was invalid JSON or did not match the schema. Please return ONLY a valid JSON object matching this exact schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}\nWithout any Markdown formatting or preamble.",
+                    "content": f"Your previous response failed validation with this error:\n{e}\n\nPlease return ONLY a valid JSON object exactly matching this schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}\nDo not include Markdown formatting or any other text.",
                 },
             ]
 

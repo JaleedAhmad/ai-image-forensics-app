@@ -10,7 +10,7 @@ from groq import AsyncGroq
 from google import genai
 from google.genai import types
 
-from models.agent_schema import AgentReport, AgentFinding, SceneProfile, to_strict_json_schema
+from models.agent_schema import AgentReport, AgentFinding, SceneProfile
 from services.agent_a import run_agent_a, SYSTEM_PROMPT as AGENT_A_PROMPT
 from services.agent_b import run_agent_b, SYSTEM_PROMPT as AGENT_B_PROMPT
 
@@ -102,26 +102,36 @@ async def _fallback_agent_a_on_groq(
 
     try:
 
-        async def call():
+        async def call(msgs):
             return await client.chat.completions.create(
                 model=model_name,
-                messages=messages,
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "agent_report",
-                        "strict": True,
-                        "schema": to_strict_json_schema(AgentReport)
-                    }
-                },
+                messages=msgs,
+                response_format={"type": "json_object"},
                 temperature=0.0,
             )
 
-        resp = await asyncio.wait_for(call(), timeout=25.0)
-        report = AgentReport.model_validate_json(resp.choices[0].message.content)
-        report.provider = resp.model
-        report.agent = "metadata_analyst"
-        return report
+        resp = await asyncio.wait_for(call(messages), timeout=25.0)
+        text_response = resp.choices[0].message.content
+        actual_model = resp.model
+        try:
+            report = AgentReport.model_validate_json(text_response)
+            report.provider = actual_model
+            report.agent = "metadata_analyst"
+            return report
+        except Exception as e:
+            logger.warning(f"Failed to parse Agent A fallback response: {e}. Retrying.")
+            retry_msgs = messages + [
+                {"role": "assistant", "content": text_response},
+                {
+                    "role": "user",
+                    "content": f"Your previous response failed validation with this error:\n{e}\n\nPlease return ONLY a valid JSON object exactly matching this schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}\nDo not include Markdown formatting or any other text."
+                }
+            ]
+            retry_resp = await asyncio.wait_for(call(retry_msgs), timeout=25.0)
+            report = AgentReport.model_validate_json(retry_resp.choices[0].message.content)
+            report.provider = retry_resp.model
+            report.agent = "metadata_analyst"
+            return report
     except Exception as e:
         import groq
         import traceback

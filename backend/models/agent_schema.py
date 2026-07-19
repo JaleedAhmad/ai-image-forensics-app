@@ -1,26 +1,5 @@
-from typing import Literal, Optional, List, Dict, Any
+from typing import Literal, Optional, List, Dict
 from pydantic import BaseModel, Field
-
-def to_strict_json_schema(model: type[BaseModel]) -> dict[str, Any]:
-    schema = model.model_json_schema()
-    
-    def _make_strict(node: dict[str, Any]) -> None:
-        if node.get("type") == "object":
-            node["additionalProperties"] = False
-            # Ensure all properties are marked required for strict mode
-            if "properties" in node:
-                node["required"] = list(node["properties"].keys())
-        for key, value in node.items():
-            if isinstance(value, dict):
-                _make_strict(value)
-            elif isinstance(value, list):
-                for item in value:
-                    if isinstance(item, dict):
-                        _make_strict(item)
-                        
-    _make_strict(schema)
-    # Remove title/defs to keep it clean, though Groq usually handles defs.
-    return schema
 
 
 class FindingLocation(BaseModel):
