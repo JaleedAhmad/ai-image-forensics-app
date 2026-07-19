@@ -8,6 +8,9 @@ from models.agent_schema import AgentReport, FinalVerdict, AgentFinding, ScenePr
 
 logger = logging.getLogger(__name__)
 
+DEGRADED_STATE_CONFIDENCE_CAP = 0.30
+
+
 SYSTEM_PROMPT = """You are Agent C — the Forensic Arbitrator. You do not see images.
 You receive two specialist reports and issue the final binding verdict.
 
@@ -102,11 +105,10 @@ async def run_agent_c(report_a: AgentReport, report_b: AgentReport, scene_profil
     try:
         verdict = await asyncio.wait_for(_attempt_parse(), timeout=40.0)
         verdict.degraded_mode = False
-        return verdict
     except Exception as e:
         logger.error(f"Agent C Cerebras primary failed: {e}")
         try:
-            return await asyncio.wait_for(_call_groq_fallback(messages), timeout=30.0)
+            verdict = await asyncio.wait_for(_call_groq_fallback(messages), timeout=30.0)
         except Exception as fallback_e:
             logger.error(f"Agent C Groq fallback also failed: {fallback_e}")
             finding = AgentFinding(
@@ -128,3 +130,22 @@ async def run_agent_c(report_a: AgentReport, report_b: AgentReport, scene_profil
                 providers_used=[model_name],
                 degraded_mode=True,
             )
+
+    # Apply override for degraded specialist agents
+    agent_a_failed = report_a.confidence == 0.0 or report_a.preliminary_verdict.lower() == "uncertain"
+    agent_b_failed = report_b.confidence == 0.0 or report_b.preliminary_verdict.lower() == "uncertain"
+
+    if agent_a_failed or agent_b_failed:
+        reasoning_lower = verdict.arbitrator_reasoning.lower()
+        failure_acknowledged = any(kw in reasoning_lower for kw in ["fail", "degraded", "one agent", "missing"])
+        
+        if not (verdict.confidence >= 0.85 and failure_acknowledged):
+            verdict.verdict = "uncertain"
+            verdict.confidence = min(verdict.confidence, DEGRADED_STATE_CONFIDENCE_CAP)
+            verdict.consensus = "conflict"
+            verdict.arbitrator_reasoning = (
+                "WARNING: The pipeline operated in a degraded state due to a specialist agent failure. "
+                f"The final verdict has been capped at 'uncertain'. Original reasoning: {verdict.arbitrator_reasoning}"
+            )
+
+    return verdict
