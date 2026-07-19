@@ -46,7 +46,7 @@ async def _call_groq(
 async def run_agent_b(
     original_image_bytes: bytes, edge_map_bytes: bytes, scene_profile: SceneProfile
 ) -> AgentReport:
-    model_name = "qwen-3.6-27b"
+    model_name = "qwen/qwen3.6-27b"
 
     # Initialize the Groq client. Relies on GROQ_API_KEY environment variable.
     client = AsyncGroq()
