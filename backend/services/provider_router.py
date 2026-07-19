@@ -44,7 +44,7 @@ async def check_provider_health(provider: str) -> bool:
         elif provider == "groq":
             client = AsyncGroq()
             await client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="qwen-3.6-27b",
                 messages=[{"role": "user", "content": "ping"}],
                 max_tokens=2,
             )
@@ -74,7 +74,7 @@ async def check_provider_health(provider: str) -> bool:
 async def _fallback_agent_a_on_groq(
     original_bytes: bytes, ela_bytes: bytes, metadata: dict, scene_profile: SceneProfile
 ) -> AgentReport:
-    model_name = "llama-3.3-70b-versatile"
+    model_name = "qwen-3.6-27b"
     client = AsyncGroq()
     original_b64 = base64.b64encode(original_bytes).decode("utf-8")
     ela_b64 = base64.b64encode(ela_bytes).decode("utf-8")
