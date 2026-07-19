@@ -91,10 +91,10 @@ def get_blank_profile() -> SceneProfile:
         medium_confidence="low",
         medium_reasoning="Profiling failed.",
         subject_description="Unknown subject due to profiling failure.",
-        human_subjects_present=False,
+        human_subjects_present=None,
         human_subject_notes=None,
         lighting_and_physics_notes="Unknown",
-        stylistic_elements_that_mimic_flaws="Unknown",
+        stylistic_elements_that_mimic_flaws=[],
         visible_text=VisibleText(present=False, transcription="", text_context=""),
         setting="ambiguous",
         setting_notes="Profiling failed.",
@@ -104,16 +104,15 @@ def get_blank_profile() -> SceneProfile:
 
 async def run_agent_0(original_image_bytes: bytes) -> SceneProfile:
     model_name = "gemini-2.5-flash"
-    client = genai.Client(
-        api_key=os.environ.get("GEMINI_API_KEY"), http_options={"api_version": "v1beta"}
-    )
-
-    parts = [
-        types.Part.from_bytes(data=original_image_bytes, mime_type="image/jpeg"),
-        "Analyze this image and return the required SceneProfile JSON.",
-    ]
 
     async def call():
+        client = genai.Client(
+            api_key=os.environ.get("GEMINI_API_KEY"), http_options={"api_version": "v1beta"}
+        )
+        parts = [
+            types.Part.from_bytes(data=original_image_bytes, mime_type="image/jpeg"),
+            "Analyze this image and return the required SceneProfile JSON.",
+        ]
         return await client.aio.models.generate_content(
             model=model_name,
             contents=parts,

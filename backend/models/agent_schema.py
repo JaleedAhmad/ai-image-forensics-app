@@ -24,10 +24,10 @@ class SceneProfile(BaseModel):
     medium_confidence: Literal["high", "medium", "low"]
     medium_reasoning: str
     subject_description: str
-    human_subjects_present: bool
+    human_subjects_present: Optional[bool]
     human_subject_notes: Optional[str]
     lighting_and_physics_notes: str
-    stylistic_elements_that_mimic_flaws: str
+    stylistic_elements_that_mimic_flaws: List[str]
     visible_text: VisibleText
     setting: Literal["real_world_photographable", "fictional_or_impossible", "ambiguous"]
     setting_notes: Optional[str]

@@ -13,7 +13,7 @@ async def test_agent_0_success():
         human_subjects_present=False,
         human_subject_notes=None,
         lighting_and_physics_notes="Normal lighting.",
-        stylistic_elements_that_mimic_flaws="",
+        stylistic_elements_that_mimic_flaws=[],
         visible_text=VisibleText(present=False, transcription="", text_context=""),
         setting="real_world_photographable",
         setting_notes=None,
