@@ -75,7 +75,39 @@ async def _fallback_agent_a_on_groq(
     original_bytes: bytes, ela_bytes: bytes, metadata: dict, scene_profile: SceneProfile
 ) -> AgentReport:
     model_name = "qwen/qwen3.6-27b"
-    client = AsyncGroq()
+    client = AsyncGroq(api_key=os.environ.get("GROQ_API_KEY"))
+
+    from PIL import Image
+    import io
+    
+    # Check token budget for Groq (8000 TPM limit, max_tokens=4000, leaving ~3000 for visual payload)
+    tokens_per_pixel = 0.0009605
+    with Image.open(io.BytesIO(original_bytes)) as img:
+        orig_pixels = img.width * img.height
+    with Image.open(io.BytesIO(ela_bytes)) as img:
+        ela_pixels = img.width * img.height
+        
+    estimated_tokens = (orig_pixels + ela_pixels) * tokens_per_pixel
+    if estimated_tokens > 3000:
+        logger.warning(f"Aborting Agent A fallback: Estimated tokens ({estimated_tokens:.0f}) exceed 3000 budget.")
+        finding = AgentFinding(
+            type="agent_failure",
+            severity="critical",
+            description="Image too large for Groq fallback (ELA analysis requires full resolution) — Gemini primary required for this image size.",
+            location=None,
+        )
+        return AgentReport(
+            thinking="Fallback due to failure. No reasoning available.",
+            agent="metadata_analyst",
+            provider=model_name,
+            findings=[finding],
+            manipulation_indicators=0,
+            authenticity_indicators=0,
+            confidence=0.0,
+            preliminary_verdict="uncertain",
+            reasoning_summary="Fallback aborted due to image size limitations.",
+        )
+
     original_b64 = base64.b64encode(original_bytes).decode("utf-8")
     ela_b64 = base64.b64encode(ela_bytes).decode("utf-8")
 

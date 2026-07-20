@@ -24,30 +24,35 @@ Severity guide:
 - medium: suspicious inconsistency that warrants flagging
 - low: minor anomaly, could be natural"""
 
+from PIL import Image
+import io
+import math
 
-async def _call_groq(
-    client: AsyncGroq, model_name: str, messages: list
-) -> tuple[str, str]:
-    logger.info(f"Calling Groq model: {model_name}")
-    try:
-        response = await client.chat.completions.create(
-            model=model_name,
-            messages=messages,
-            response_format={"type": "json_object"},
-            max_tokens=4000,
-            temperature=0.0,
-        )
-    except Exception as e:
-        import groq
-        if isinstance(e, groq.APIStatusError) and hasattr(e, 'response'):
-            logger.error(f"Groq API Error in _call_groq: {e}. RAW RESPONSE: {e.response.text}")
-        raise e
+def _resize_for_token_budget(image_bytes: bytes, token_budget: int = 1500) -> bytes:
+    # Qwen-VL empirical ratio from testing: ~0.00096 tokens per pixel
+    tokens_per_pixel = 0.0009605
+    max_pixels = token_budget / tokens_per_pixel
+    
+    with Image.open(io.BytesIO(image_bytes)) as img:
+        # Convert to RGB if necessary before saving to JPEG
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+            
+        current_pixels = img.width * img.height
+        if current_pixels <= max_pixels:
+            return image_bytes
+            
+        scale_factor = math.sqrt(max_pixels / current_pixels)
+        new_width = int(img.width * scale_factor)
+        new_height = int(img.height * scale_factor)
+        
+        resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        out = io.BytesIO()
+        resized_img.save(out, format="JPEG", quality=95)
+        return out.getvalue()
 
-    # Log actual model ID that responded
-    actual_model = response.model
-    logger.info(f"Groq model that actually responded: {actual_model}")
 
-    return response.choices[0].message.content, actual_model
+
 
 
 async def run_agent_b(
@@ -61,9 +66,13 @@ async def run_agent_b(
     # Initialize the Groq client. Relies on GROQ_API_KEY environment variable.
     client = AsyncGroq()
 
-    # Base64 encode the images for the standard OpenAI-compatible image_url format
-    original_b64 = base64.b64encode(original_image_bytes).decode("utf-8")
-    edge_map_b64 = base64.b64encode(edge_map_bytes).decode("utf-8")
+    # Apply dynamic resizing to fit the ~1500 token-per-image budget
+    resized_original = _resize_for_token_budget(original_image_bytes)
+    resized_edge = _resize_for_token_budget(edge_map_bytes)
+
+    # Base64 encode the resized images for the standard OpenAI-compatible image_url format
+    original_b64 = base64.b64encode(resized_original).decode("utf-8")
+    edge_map_b64 = base64.b64encode(resized_edge).decode("utf-8")
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
