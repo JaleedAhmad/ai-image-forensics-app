@@ -107,10 +107,11 @@ async def _fallback_agent_a_on_groq(
                 model=model_name,
                 messages=msgs,
                 response_format={"type": "json_object"},
+                max_tokens=4000,
                 temperature=0.0,
             )
 
-        resp = await asyncio.wait_for(call(messages), timeout=25.0)
+        resp = await asyncio.wait_for(call(messages), timeout=60.0)
         text_response = resp.choices[0].message.content
         actual_model = resp.model
         try:
@@ -127,7 +128,7 @@ async def _fallback_agent_a_on_groq(
                     "content": f"Your previous response failed validation with this error:\n{e}\n\nPlease return ONLY a valid JSON object exactly matching this schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}\nDo not include Markdown formatting or any other text."
                 }
             ]
-            retry_resp = await asyncio.wait_for(call(retry_msgs), timeout=25.0)
+            retry_resp = await asyncio.wait_for(call(retry_msgs), timeout=60.0)
             report = AgentReport.model_validate_json(retry_resp.choices[0].message.content)
             report.provider = retry_resp.model
             report.agent = "metadata_analyst"

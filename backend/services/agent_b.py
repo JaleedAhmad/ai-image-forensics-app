@@ -34,6 +34,7 @@ async def _call_groq(
             model=model_name,
             messages=messages,
             response_format={"type": "json_object"},
+            max_tokens=4000,
             temperature=0.0,
         )
     except Exception as e:
@@ -84,7 +85,10 @@ async def run_agent_b(
 
     async def _attempt_parse() -> AgentReport:
         # First attempt
-        text_response, actual_model = await _call_groq(client, model_name, messages)
+        text_response, actual_model = await asyncio.wait_for(
+            _call_groq(client, model_name, messages),
+            timeout=60.0
+        )
         try:
             report = AgentReport.model_validate_json(text_response)
             report.provider = actual_model
@@ -103,16 +107,17 @@ async def run_agent_b(
                 },
             ]
 
-            retry_text_response, actual_model_retry = await _call_groq(
-                client, model_name, retry_messages
+            retry_text_response, actual_model_retry = await asyncio.wait_for(
+                _call_groq(client, model_name, retry_messages),
+                timeout=60.0
             )
             report = AgentReport.model_validate_json(retry_text_response)
             report.provider = actual_model_retry
             return report
 
     try:
-        # Timeout after 25 seconds (Groq is faster, shorter timeout is fine)
-        report = await asyncio.wait_for(_attempt_parse(), timeout=25.0)
+        # Timeout is handled per-attempt inside _attempt_parse
+        report = await _attempt_parse()
 
         # Ensure the agent type is correctly assigned
         report.agent = "semantic_auditor"
