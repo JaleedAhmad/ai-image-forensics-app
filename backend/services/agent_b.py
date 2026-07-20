@@ -53,6 +53,9 @@ async def _call_groq(
 async def run_agent_b(
     original_image_bytes: bytes, edge_map_bytes: bytes, scene_profile: SceneProfile
 ) -> AgentReport:
+    # Note: qwen/qwen3.6-27b is currently Groq's only vision-capable model and is
+    # preview status (not production-guaranteed, may be discontinued without notice).
+    # This is a deliberate, accepted tradeoff, documented so it's not mistaken for an oversight later.
     model_name = "qwen/qwen3.6-27b"
 
     # Initialize the Groq client. Relies on GROQ_API_KEY environment variable.
@@ -83,66 +86,17 @@ async def run_agent_b(
         },
     ]
 
-    async def _attempt_parse() -> AgentReport:
-        # First attempt
-        text_response, actual_model = await asyncio.wait_for(
-            _call_groq(client, model_name, messages),
-            timeout=60.0
-        )
-        try:
-            report = AgentReport.model_validate_json(text_response)
-            report.provider = actual_model
-            return report
-        except Exception as e:
-            logger.warning(
-                f"Failed to parse initial JSON response from Groq: {e}. Retrying with simpler prompt."
-            )
+    from services.llm_utils import call_llm_with_json_validation
 
-            # Retry attempt
-            retry_messages = messages + [
-                {"role": "assistant", "content": text_response},
-                {
-                    "role": "user",
-                    "content": f"Your previous response failed validation with this error:\n{e}\n\nPlease return ONLY a valid JSON object exactly matching this schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}\nDo not include Markdown formatting or any other text.",
-                },
-            ]
-
-            retry_text_response, actual_model_retry = await asyncio.wait_for(
-                _call_groq(client, model_name, retry_messages),
-                timeout=60.0
-            )
-            report = AgentReport.model_validate_json(retry_text_response)
-            report.provider = actual_model_retry
-            return report
-
-    try:
-        # Timeout is handled per-attempt inside _attempt_parse
-        report = await _attempt_parse()
-
-        # Ensure the agent type is correctly assigned
-        report.agent = "semantic_auditor"
-        return report
-
-    except Exception as e:
-        import traceback
-        full_traceback = traceback.format_exc()
-        logger.error(f"Agent B encountered a total failure: {e}\nTraceback:\n{full_traceback}")
-        error_msg = str(e) or f"{type(e).__name__} (no message)"
-        # On total failure return a degraded AgentReport with confidence: 0.0
-        finding = AgentFinding(
-            type="agent_failure",
-            severity="critical",
-            description=f"Agent B failed to generate a valid report: {error_msg}",
-            location=None,
-        )
-        return AgentReport(
-            thinking="Fallback due to failure. No reasoning available.",
-            agent="semantic_auditor",
-            provider=model_name,
-            findings=[finding],
-            manipulation_indicators=0,
-            authenticity_indicators=0,
-            confidence=0.0,
-            preliminary_verdict="uncertain",
-            reasoning_summary="Agent experienced a total failure during semantic analysis or JSON parsing.",
-        )
+    return await call_llm_with_json_validation(
+        provider="groq",
+        client=client,
+        model_name=model_name,
+        system_prompt=SYSTEM_PROMPT,
+        payload=messages,
+        schema=AgentReport,
+        agent_name="semantic_auditor",
+        timeout=60.0,
+        max_tokens=4000,
+        max_retries=1,
+    )

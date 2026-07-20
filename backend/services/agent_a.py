@@ -39,56 +39,17 @@ async def run_agent_a(
         f"Scene Context Profile (from Agent 0):\n{scene_profile.model_dump_json(indent=2)}\n\nOriginal Image Metadata:\n{json.dumps(metadata, indent=2)}\n\nPlease provide your analysis.",
     ]
 
-    try:
-
-        async def call():
-            return await client.aio.models.generate_content(
-                model=model_name,
-                contents=parts,
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
-                    response_mime_type="application/json",
-                    response_schema=AgentReport,
-                    temperature=0.0,
-                ),
-            )
-
-        async def _attempt() -> AgentReport:
-            response = await asyncio.wait_for(call(), timeout=60.0)
-            report = AgentReport.model_validate_json(response.text)
-            report.provider = model_name
-            report.agent = "metadata_analyst"
-            return report
-
-        try:
-            return await _attempt()
-        except Exception as e:
-            logger.warning(
-                f"Agent A analysis failed on first attempt: {e}. Retrying."
-            )
-            await asyncio.sleep(2)
-            return await _attempt()
-
-    except Exception as e:
-        import traceback
-        full_traceback = traceback.format_exc()
-        logger.error(f"Agent A encountered a total failure: {e}\nTraceback:\n{full_traceback}")
-        
-        error_msg = str(e) or f"{type(e).__name__} (no message)"
-        finding = AgentFinding(
-            type="agent_failure",
-            severity="critical",
-            description=f"Agent A failed to generate a valid report: {error_msg}",
-            location=None,
-        )
-        return AgentReport(
-            thinking="Fallback due to failure. No reasoning available.",
-            agent="metadata_analyst",
-            provider=model_name,
-            findings=[finding],
-            manipulation_indicators=0,
-            authenticity_indicators=0,
-            confidence=0.0,
-            preliminary_verdict="uncertain",
-            reasoning_summary="Agent experienced a total failure during analysis or JSON parsing.",
-        )
+    from services.llm_utils import call_llm_with_json_validation
+    
+    return await call_llm_with_json_validation(
+        provider="gemini",
+        client=client,
+        model_name=model_name,
+        system_prompt=SYSTEM_PROMPT,
+        payload=parts,
+        schema=AgentReport,
+        agent_name="metadata_analyst",
+        timeout=60.0,
+        max_tokens=4000,
+        max_retries=1,
+    )

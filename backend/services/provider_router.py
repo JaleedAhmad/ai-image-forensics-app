@@ -100,68 +100,20 @@ async def _fallback_agent_a_on_groq(
         },
     ]
 
-    try:
-
-        async def call(msgs):
-            return await client.chat.completions.create(
-                model=model_name,
-                messages=msgs,
-                response_format={"type": "json_object"},
-                max_tokens=4000,
-                temperature=0.0,
-            )
-
-        resp = await asyncio.wait_for(call(messages), timeout=60.0)
-        text_response = resp.choices[0].message.content
-        actual_model = resp.model
-        try:
-            report = AgentReport.model_validate_json(text_response)
-            report.provider = actual_model
-            report.agent = "metadata_analyst"
-            return report
-        except Exception as e:
-            logger.warning(f"Failed to parse Agent A fallback response: {e}. Retrying.")
-            retry_msgs = messages + [
-                {"role": "assistant", "content": text_response},
-                {
-                    "role": "user",
-                    "content": f"Your previous response failed validation with this error:\n{e}\n\nPlease return ONLY a valid JSON object exactly matching this schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}\nDo not include Markdown formatting or any other text."
-                }
-            ]
-            retry_resp = await asyncio.wait_for(call(retry_msgs), timeout=60.0)
-            report = AgentReport.model_validate_json(retry_resp.choices[0].message.content)
-            report.provider = retry_resp.model
-            report.agent = "metadata_analyst"
-            return report
-    except Exception as e:
-        import groq
-        import traceback
-        full_traceback = traceback.format_exc()
-        
-        if isinstance(e, groq.APIStatusError) and hasattr(e, 'response'):
-            logger.error(f"Fallback Agent A on Groq failed with API error: {e}. RAW RESPONSE: {e.response.text}\nTraceback:\n{full_traceback}")
-            error_msg = str(e) or f"{type(e).__name__} (no message)"
-        else:
-            logger.error(f"Fallback Agent A on Groq failed: {e}\nTraceback:\n{full_traceback}")
-            error_msg = str(e) or f"{type(e).__name__} (no message)"
-            
-        finding = AgentFinding(
-            type="agent_failure",
-            severity="critical",
-            description=f"Fallback failed: {error_msg}",
-            location=None,
-        )
-        return AgentReport(
-            thinking="Fallback due to failure. No reasoning available.",
-            agent="metadata_analyst",
-            provider=model_name,
-            findings=[finding],
-            manipulation_indicators=0,
-            authenticity_indicators=0,
-            confidence=0.0,
-            preliminary_verdict="uncertain",
-            reasoning_summary="Fallback failure on Groq.",
-        )
+    from services.llm_utils import call_llm_with_json_validation
+    
+    return await call_llm_with_json_validation(
+        provider="groq",
+        client=client,
+        model_name=model_name,
+        system_prompt=AGENT_A_PROMPT,
+        payload=messages,
+        schema=AgentReport,
+        agent_name="metadata_analyst",
+        timeout=60.0,
+        max_tokens=4000,
+        max_retries=1,
+    )
 
 
 async def _fallback_agent_b_on_gemini(
@@ -178,44 +130,20 @@ async def _fallback_agent_b_on_gemini(
         f"Scene Context Profile (from Agent 0):\n{scene_profile.model_dump_json(indent=2)}\n\nAnalyze these images (original and edge map) and return your report.",
     ]
 
-    try:
-
-        async def call():
-            return await client.aio.models.generate_content(
-                model=model_name,
-                contents=parts,
-                config=types.GenerateContentConfig(
-                    system_instruction=AGENT_B_PROMPT,
-                    response_mime_type="application/json",
-                    response_schema=AgentReport,
-                    temperature=0.0,
-                ),
-            )
-
-        resp = await asyncio.wait_for(call(), timeout=30.0)
-        report = AgentReport.model_validate_json(resp.text)
-        report.provider = model_name
-        report.agent = "semantic_auditor"
-        return report
-    except Exception as e:
-        logger.error(f"Fallback Agent B on Gemini failed: {e}")
-        finding = AgentFinding(
-            type="agent_failure",
-            severity="critical",
-            description=f"Fallback failed: {e}",
-            location=None,
-        )
-        return AgentReport(
-            thinking="Fallback due to failure. No reasoning available.",
-            agent="semantic_auditor",
-            provider=model_name,
-            findings=[finding],
-            manipulation_indicators=0,
-            authenticity_indicators=0,
-            confidence=0.0,
-            preliminary_verdict="uncertain",
-            reasoning_summary="Fallback failure on Gemini.",
-        )
+    from services.llm_utils import call_llm_with_json_validation
+    
+    return await call_llm_with_json_validation(
+        provider="gemini",
+        client=client,
+        model_name=model_name,
+        system_prompt=AGENT_B_PROMPT,
+        payload=parts,
+        schema=AgentReport,
+        agent_name="semantic_auditor",
+        timeout=60.0,
+        max_tokens=4000,
+        max_retries=1,
+    )
 
 
 async def run_vision_agents(
