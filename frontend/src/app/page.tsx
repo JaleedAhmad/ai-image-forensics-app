@@ -17,7 +17,7 @@ export default function Home() {
   const [exporting, setExporting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  // V6.0 Interactive Features State
+  // V7.0 Interactive Features State
   const [cooldown, setCooldown] = useState(0);
   const [sliderPos, setSliderPos] = useState(50);
   const [selectedOverlay, setSelectedOverlay] = useState<string | null>(null);
@@ -304,7 +304,7 @@ export default function Home() {
         <header className="flex flex-col md:flex-row justify-between items-center mb-12 border-b border-slate-800 pb-8 print:border-black print:mb-4">
           <div>
             <h1 className="text-4xl md:text-5xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 mb-2 print:text-black print:bg-none">
-              NEURAL FORENSICS V6.0
+              NEURAL FORENSICS V7.0
             </h1>
             <div className="flex flex-col gap-3">
               <p className="text-slate-500 font-mono text-xs tracking-widest uppercase flex items-center print:text-slate-800">
@@ -781,7 +781,7 @@ export default function Home() {
             <span className="hidden md:inline">Precision_Gate: 0.9997</span>
           </div>
           <div className="italic text-slate-800 font-black">
-            &copy; 2026 NEURAL INTERROGATOR // V6.0 SUITE
+            &copy; 2026 NEURAL INTERROGATOR // V7.0 SUITE
           </div>
         </footer>
       </div>
