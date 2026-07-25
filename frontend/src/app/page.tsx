@@ -166,10 +166,11 @@ export default function Home() {
               const ymax = (f.location.y + f.location.h) * 1000;
               detailed_findings.push({
                 description: f.description,
+                severity: f.severity,
                 location_normalized: [ymin, xmin, ymax, xmax],
               });
             } else {
-              detailed_findings.push({ description: f.description });
+              detailed_findings.push({ description: f.description, severity: f.severity });
             }
           });
 
@@ -713,26 +714,27 @@ export default function Home() {
                 {/* INTERACTIVE FINDINGS */}
                 <div className="space-y-5 print:mt-10">
                   <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] px-2">
-                    Anomalous Artifacts Detected
+                    {result.detailed_findings?.some((f: any) => f.severity && f.severity !== 'none') ? "Anomalous Artifacts Detected" : "Authenticity Findings"}
                   </h3>
                   <div className="grid grid-cols-1 gap-3">
                     {result.detailed_findings?.map(
                       (finding: any, idx: number) => {
                         const isInteractive = !!finding.location_normalized;
+                        const isPositive = finding.severity === 'none';
                         return (
                           <div
                             key={idx}
                             onClick={() =>
                               isInteractive && handleFindingClick(finding)
                             }
-                            className={`flex items-center justify-between bg-slate-900/40 border border-slate-800 p-5 rounded-2xl text-left w-full print:border-slate-200 ${isInteractive ? "group hover:bg-slate-900/60 hover:border-cyan-500/30 transition-all cursor-pointer" : "cursor-default"}`}
+                            className={`flex items-center justify-between bg-slate-900/40 border border-slate-800 p-5 rounded-2xl text-left w-full print:border-slate-200 ${isInteractive ? `group hover:bg-slate-900/60 ${isPositive ? 'hover:border-emerald-500/30' : 'hover:border-cyan-500/30'} transition-all cursor-pointer` : "cursor-default"}`}
                           >
                             <div className="flex items-center">
                               <div
-                                className={`w-8 h-8 rounded-lg bg-slate-950 flex items-center justify-center mr-5 border border-slate-800 ${isInteractive ? "group-hover:border-cyan-500/50" : ""}`}
+                                className={`w-8 h-8 rounded-lg bg-slate-950 flex items-center justify-center mr-5 border border-slate-800 ${isInteractive ? (isPositive ? 'group-hover:border-emerald-500/50' : 'group-hover:border-cyan-500/50') : ""}`}
                               >
                                 <span
-                                  className={`text-[9px] font-black text-slate-600 ${isInteractive ? "group-hover:text-cyan-500" : ""}`}
+                                  className={`text-[9px] font-black text-slate-600 ${isInteractive ? (isPositive ? 'group-hover:text-emerald-500' : 'group-hover:text-cyan-500') : ""}`}
                                 >
                                   0{idx + 1}
                                 </span>

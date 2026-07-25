@@ -1,0 +1,52 @@
+{
+  "thinking": "Both agents found strong authenticity indicators (consistent ELA, perfect geometric structure) with no manipulation indicators.",
+  "verdict": "authentic",
+  "confidence": 0.92,
+  "consensus": "full_agreement",
+  "agent_a_report": {
+    "thinking": "The metadata is minimal. The ELA map shows uniform noise levels typical of a single-save vector graphic.",
+    "agent": "metadata_analyst",
+    "provider": "gemini-2.0-flash",
+    "findings": [
+      {
+        "type": "compression_analysis",
+        "severity": "none",
+        "location": null,
+        "description": "Uniform ELA map with no strong local error spikes."
+      }
+    ],
+    "manipulation_indicators": 0,
+    "authenticity_indicators": 1,
+    "confidence": 0.9,
+    "preliminary_verdict": "authentic",
+    "reasoning_summary": "No evidence of metadata tampering or compression inconsistency."
+  },
+  "agent_b_report": {
+    "thinking": "The geometric structures of the charts are perfect. Lighting does not apply to a flat vector. Semantic plausibility is high for a dashboard.",
+    "agent": "semantic_auditor",
+    "provider": "qwen/qwen3.6-27b",
+    "findings": [
+      {
+        "type": "semantic_analysis",
+        "severity": "none",
+        "location": null,
+        "description": "Perfectly aligned geometric chart structures and consistent flat vector typography."
+      }
+    ],
+    "manipulation_indicators": 0,
+    "authenticity_indicators": 1,
+    "confidence": 0.95,
+    "preliminary_verdict": "authentic",
+    "reasoning_summary": "The image consists of mathematically perfect geometric and semantic structures typical of an authentic vector UI mockup."
+  },
+  "arbitrator_reasoning": "Agent A verified metadata and ELA map as authentic. Agent B verified geometric structure. Both agents completely agree.",
+  "key_evidence": [
+    "Uniform ELA",
+    "Perfect geometric alignment"
+  ],
+  "artifact_locations": [],
+  "providers_used": [
+    "zai-glm-4.7"
+  ],
+  "degraded_mode": false
+}

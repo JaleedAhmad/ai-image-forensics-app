@@ -48,7 +48,7 @@ A premium, agentic AI forensic suite designed to interrogate digital imagery for
 | :--- | :--- | :--- |
 | **Agent 0: Scene Profiler** | Google Gemini 2.5 Flash | Context extraction — medium, subject, lighting, visible text — passed to all downstream agents. |
 | **Agent A: Metadata & Compression** | Google Gemini 2.5 Flash | ELA heatmaps, compression anomalies, file signatures. |
-| **Agent B: Semantic Auditor** | Groq (qwen/qwen3.6-27b) | Lighting consistency, geometry, edge map anomalies. |
+| **Agent B: Semantic Auditor** | Groq (qwen/qwen3.6-27b) | Lighting consistency, geometry, semantic plausibility. *(Single-image analysis due to API limits)* |
 | **Agent C: Forensic Arbitrator** | Cerebras (GLM 4.7) | Verdict synthesis, conflict resolution, calibration. |
 
 ---
@@ -114,7 +114,7 @@ Groq's free tier enforces an 8,000 tokens-per-minute (TPM) budget per request, c
 
 The two specialist agents needed different solutions, because they rely on different kinds of visual signal:
 
-- **Agent B (Semantic Auditor)** analyzes macro-level structural features — lighting consistency, shadow direction, anatomical plausibility, perspective. These remain legible after downscaling. Agent B now dynamically resizes its image payload to fit the token budget, calculated per-request from the actual token cost rather than a fixed guess.
+- **Agent B (Semantic Auditor)** analyzes macro-level structural features — lighting consistency, shadow direction, anatomical plausibility, perspective. Due to strict provider TPM rate limits (8000 max), Agent B on Groq operates in a transparent **single-image analysis mode**, receiving only the original image and inferring texture/boundary anomalies directly from RGB data without a synthetic edge map.
 - **Agent A's Groq fallback** analyzes Error Level Analysis (ELA) maps, which depend entirely on pixel-level JPEG compression noise. Downscaling an ELA map destroys the exact signal the agent is meant to detect. Rather than degrade its accuracy silently, this path performs a pre-flight token estimate and aborts the fallback attempt outright on oversized images, returning an explicit "image too large for Groq fallback — full-resolution analysis required" finding instead of a raw API error.
 
 The result: Agent B stays reliable at any image size, Agent A's fallback stays honest about its limits, and neither path silently sacrifices forensic accuracy to fit a rate limit.
@@ -175,7 +175,11 @@ The resolution — a shared `call_llm_with_json_validation` helper handling per-
 1. `cd backend`
 2. `pip install -r requirements.txt`
 3. Configure `.env` with `GEMINI_API_KEY`, `GROQ_API_KEY`, `CEREBRAS_API_KEY`, and `GOOGLE_CLOUD_PROJECT`.
-4. `uvicorn main:app --reload`
+4. Start the backend (`uvicorn main:app --reload`)
+
+> **Note on API Quotas (Mock Mode):**
+> Because this pipeline chains 4 LLM calls per image, you can burn through free-tier quotas (like Groq's 200k TPD limit) quickly during local UI development. 
+> To bypass actual API calls and use realistic canned JSON responses, set `USE_MOCK_LLM=true` in `backend/.env`. You can also set `MOCK_SCENARIO=anomalous` or `MOCK_SCENARIO=retry_success` to test specific failure paths without hitting the network. Mock Mode will automatically refuse to start if deployed to a production environment like a Hugging Face Space.
 
 ### Frontend Setup
 1. `cd frontend`

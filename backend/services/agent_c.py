@@ -33,6 +33,11 @@ You return ONLY a JSON object matching the FinalVerdict schema. No preamble. No 
 async def _call_cerebras(
     client: AsyncOpenAI, model_name: str, messages: list
 ) -> tuple[str, str]:
+    if os.environ.get("USE_MOCK_LLM") == "true":
+        from services.mock_llm import get_mock_response
+        logger.info("[arbitrator] Using MOCK LLM response.")
+        return get_mock_response("arbitrator"), f"mock-{model_name}"
+        
     logger.info(f"Calling Cerebras model: {model_name}")
     response = await client.chat.completions.create(
         model=model_name,
@@ -45,17 +50,26 @@ async def _call_cerebras(
 
 
 async def _call_groq_fallback(messages: list) -> FinalVerdict:
-    logger.info("Falling back Arbitrator to Groq...")
-    client = AsyncGroq()
-    model_name = "llama-3.3-70b-versatile"
-    response = await client.chat.completions.create(
-        model=model_name,
-        messages=messages,
-        response_format={"type": "json_object"},
-        temperature=0.0,
-    )
-    verdict = FinalVerdict.model_validate_json(response.choices[0].message.content)
-    verdict.providers_used.append(response.model)
+    if os.environ.get("USE_MOCK_LLM") == "true":
+        from services.mock_llm import get_mock_response
+        logger.info("[arbitrator fallback] Using MOCK LLM response.")
+        text_content = get_mock_response("arbitrator", fallback=True)
+        model = "mock-llama-3.3-70b-versatile"
+    else:
+        logger.info("Falling back Arbitrator to Groq...")
+        client = AsyncGroq()
+        model_name = "llama-3.3-70b-versatile"
+        response = await client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            response_format={"type": "json_object"},
+            temperature=0.0,
+        )
+        text_content = response.choices[0].message.content
+        model = response.model
+        
+    verdict = FinalVerdict.model_validate_json(text_content)
+    verdict.providers_used.append(model)
     verdict.degraded_mode = True
     return verdict
 

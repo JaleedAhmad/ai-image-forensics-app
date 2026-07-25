@@ -12,7 +12,8 @@ Your jurisdiction is strictly limited to:
 1. Lighting and shadow consistency — do light sources match across the scene?
 2. Geometric integrity — perspective, proportions, edge continuity
 3. Semantic plausibility — physically impossible elements, anatomical failures
-4. Texture boundary analysis — unnatural transitions between regions using the edge map
+
+(Note: You only receive the original image. You must infer texture/boundary anomalies directly from the RGB visual data).
 
 You are adversarial by nature. Assume manipulation until the evidence proves otherwise.
 You do NOT analyze compression, metadata, or file signatures. That is another agent's job.
@@ -22,14 +23,15 @@ Severity guide:
 - critical: physically impossible element (impossible shadow direction, broken perspective)
 - high: strong geometric or semantic failure with no natural explanation
 - medium: suspicious inconsistency that warrants flagging
-- low: minor anomaly, could be natural"""
+- low: minor anomaly, could be natural
+- none: positive evidence of authenticity (e.g., "clean vector lines", "consistent lighting"). If the image is authentic, you MUST still log your positive evidence in the findings array using severity="none"."""
 
 from PIL import Image
 import io
 import math
 
-def _resize_for_token_budget(image_bytes: bytes, token_budget: int = 1500) -> bytes:
-    # Qwen-VL empirical ratio from testing: ~0.00096 tokens per pixel
+def _resize_for_token_budget(image_bytes: bytes, token_budget: int = 1250) -> bytes:
+    # Safely conservative ratio based on actual Qwen-VL maximums
     tokens_per_pixel = 0.0009605
     max_pixels = token_budget / tokens_per_pixel
     
@@ -39,16 +41,14 @@ def _resize_for_token_budget(image_bytes: bytes, token_budget: int = 1500) -> by
             img = img.convert("RGB")
             
         current_pixels = img.width * img.height
-        if current_pixels <= max_pixels:
-            return image_bytes
+        if current_pixels > max_pixels:
+            scale_factor = math.sqrt(max_pixels / current_pixels)
+            new_width = int(img.width * scale_factor)
+            new_height = int(img.height * scale_factor)
+            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
             
-        scale_factor = math.sqrt(max_pixels / current_pixels)
-        new_width = int(img.width * scale_factor)
-        new_height = int(img.height * scale_factor)
-        
-        resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
         out = io.BytesIO()
-        resized_img.save(out, format="JPEG", quality=95)
+        img.save(out, format="JPEG", quality=85)
         return out.getvalue()
 
 
@@ -66,13 +66,11 @@ async def run_agent_b(
     # Initialize the Groq client. Relies on GROQ_API_KEY environment variable.
     client = AsyncGroq()
 
-    # Apply dynamic resizing to fit the ~1500 token-per-image budget
+    # Apply dynamic resizing to fit the visual budget
     resized_original = _resize_for_token_budget(original_image_bytes)
-    resized_edge = _resize_for_token_budget(edge_map_bytes)
 
     # Base64 encode the resized images for the standard OpenAI-compatible image_url format
     original_b64 = base64.b64encode(resized_original).decode("utf-8")
-    edge_map_b64 = base64.b64encode(resized_edge).decode("utf-8")
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -81,15 +79,11 @@ async def run_agent_b(
             "content": [
                 {
                     "type": "text",
-                    "text": f"Scene Context Profile (from Agent 0):\n{scene_profile.model_dump_json(indent=2)}\n\nAnalyze these images (original and edge map) and return your report strictly as a JSON object matching this schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}",
+                    "text": f"Scene Context Profile (from Agent 0):\n{scene_profile.model_dump_json(indent=2)}\n\nAnalyze this image and return your report strictly as a JSON object matching this schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}",
                 },
                 {
                     "type": "image_url",
                     "image_url": {"url": f"data:image/jpeg;base64,{original_b64}"},
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{edge_map_b64}"},
                 },
             ],
         },

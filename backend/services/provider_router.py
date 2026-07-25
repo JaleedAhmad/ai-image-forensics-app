@@ -80,20 +80,23 @@ async def _fallback_agent_a_on_groq(
     from PIL import Image
     import io
     
-    # Check token budget for Groq (8000 TPM limit, max_tokens=4000, leaving ~3000 for visual payload)
-    tokens_per_pixel = 0.0009605
-    with Image.open(io.BytesIO(original_bytes)) as img:
-        orig_pixels = img.width * img.height
-    with Image.open(io.BytesIO(ela_bytes)) as img:
-        ela_pixels = img.width * img.height
-        
-    estimated_tokens = (orig_pixels + ela_pixels) * tokens_per_pixel
-    if estimated_tokens > 3000:
-        logger.warning(f"Aborting Agent A fallback: Estimated tokens ({estimated_tokens:.0f}) exceed 3000 budget.")
+    TEXT_BASELINE_TOKENS = 1263
+    
+    # Dynamically estimate metadata and scene profile variation size (~4 chars per token)
+    dynamic_text_tokens = (len(json.dumps(metadata)) + len(scene_profile.model_dump_json())) / 4
+    total_text_overhead = TEXT_BASELINE_TOKENS + dynamic_text_tokens
+
+    # Check token budget for Groq (8000 TPM limit, max_tokens=4000, leaving ~4000 for visual + text payload)
+    # Qwen-VL empirical limit is a flat ~1800 tokens per image. Since we only send the ELA map now, it's just 1800.
+    estimated_image_tokens = 1800
+    total_estimated_tokens = estimated_image_tokens + total_text_overhead
+    
+    if total_estimated_tokens > 3900:
+        logger.warning(f"Aborting Agent A fallback: Estimated total tokens ({total_estimated_tokens:.0f}) exceed 3900 budget (Image: {estimated_image_tokens:.0f}, Text: {total_text_overhead}).")
         finding = AgentFinding(
             type="agent_failure",
             severity="critical",
-            description="Image too large for Groq fallback (ELA analysis requires full resolution) — Gemini primary required for this image size.",
+            description=f"Image too large for Groq fallback (Estimated total tokens: {total_estimated_tokens:.0f}) — Gemini primary required.",
             location=None,
         )
         return AgentReport(
@@ -108,7 +111,6 @@ async def _fallback_agent_a_on_groq(
             reasoning_summary="Fallback aborted due to image size limitations.",
         )
 
-    original_b64 = base64.b64encode(original_bytes).decode("utf-8")
     ela_b64 = base64.b64encode(ela_bytes).decode("utf-8")
 
     messages = [
@@ -118,11 +120,7 @@ async def _fallback_agent_a_on_groq(
             "content": [
                 {
                     "type": "text",
-                    "text": f"Original Image Metadata:\n{json.dumps(metadata, indent=2)}\n\nScene Context Profile (from Agent 0):\n{scene_profile.model_dump_json(indent=2)}\n\nPlease provide your analysis strictly as a JSON object matching this schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}",
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{original_b64}"},
+                    "text": f"Original Image Metadata:\n{json.dumps(metadata, indent=2)}\n\nScene Context Profile (from Agent 0):\n{scene_profile.model_dump_json(indent=2)}\n\nPlease provide your analysis of this ELA map strictly as a JSON object matching this schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}",
                 },
                 {
                     "type": "image_url",

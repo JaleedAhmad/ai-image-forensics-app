@@ -14,7 +14,7 @@ import {
 // Interfaces matching the backend
 interface AgentFinding {
   type: string;
-  severity: "low" | "medium" | "high" | "critical";
+  severity: "none" | "low" | "medium" | "high" | "critical";
   description: string;
 }
 
@@ -102,9 +102,16 @@ export default function AgentConsensusPanel({
             </div>
             <h3 className="text-zinc-100 font-semibold">{title}</h3>
           </div>
-          <span className="text-xs text-zinc-500 font-mono bg-zinc-950 px-2 py-1 rounded">
-            {report.provider}
-          </span>
+          <div className="flex flex-col items-end space-y-1">
+            <span className="text-xs text-zinc-500 font-mono bg-zinc-950 px-2 py-1 rounded">
+              {report.provider}
+            </span>
+            {!isAgentA && (
+              <span className="text-[10px] text-zinc-500/70 font-mono bg-zinc-950/50 border border-zinc-800/50 px-1.5 py-0.5 rounded cursor-help" title="Operating in single-image mode due to API token limits">
+                Single-image Analysis
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-end justify-between mb-6 pb-4 border-b border-zinc-800">

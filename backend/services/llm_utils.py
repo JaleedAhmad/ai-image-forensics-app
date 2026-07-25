@@ -61,7 +61,12 @@ async def call_llm_with_json_validation(
     
     while attempts <= max_retries:
         try:
-            if provider == "groq":
+            if os.environ.get("USE_MOCK_LLM") == "true":
+                from services.mock_llm import get_mock_response
+                logger.info(f"[{agent_name}] Using MOCK LLM response.")
+                text_response = get_mock_response(agent_name)
+                actual_model = f"mock-{model_name}"
+            elif provider == "groq":
                 text_response, actual_model = await _call_groq(client, model_name, current_payload, max_tokens, timeout)
             elif provider == "gemini":
                 text_response, actual_model = await _call_gemini(client, model_name, system_prompt, current_payload, schema, max_tokens, timeout)

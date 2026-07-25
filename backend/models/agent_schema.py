@@ -37,7 +37,7 @@ class SceneProfile(BaseModel):
 
 class AgentFinding(BaseModel):
     type: str
-    severity: Literal["low", "medium", "high", "critical"]
+    severity: Literal["none", "low", "medium", "high", "critical"]
     location: Optional[FindingLocation] = None
     description: str
 

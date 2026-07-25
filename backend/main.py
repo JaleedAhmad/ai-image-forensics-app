@@ -165,6 +165,17 @@ from services.provider_router import PROVIDER_STATUS, check_provider_health
 
 @app.on_event("startup")
 async def startup_event():
+    if os.environ.get("USE_MOCK_LLM") == "true":
+        logger.warning("=========================================================")
+        logger.warning("! MOCK MODE ACTIVE — no real API calls will be made ! ")
+        logger.warning("=========================================================")
+        
+        # Enforce production constraint
+        if os.environ.get("SPACE_ID") or os.environ.get("ENVIRONMENT") == "production":
+            logger.error("CRITICAL SECURITY ERROR: USE_MOCK_LLM is enabled in a production/HF Space environment! Refusing to start.")
+            import sys
+            sys.exit(1)
+
     import asyncio
 
     asyncio.create_task(check_provider_health("gemini"))

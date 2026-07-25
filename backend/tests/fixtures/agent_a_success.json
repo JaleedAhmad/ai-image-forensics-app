@@ -1,0 +1,18 @@
+{
+  "thinking": "The metadata is minimal. The ELA map shows uniform noise levels typical of a single-save vector graphic.",
+  "agent": "metadata_analyst",
+  "provider": "gemini-2.0-flash",
+  "findings": [
+    {
+      "type": "compression_analysis",
+      "severity": "none",
+      "location": null,
+      "description": "Uniform ELA map with no strong local error spikes."
+    }
+  ],
+  "manipulation_indicators": 0,
+  "authenticity_indicators": 1,
+  "confidence": 0.9,
+  "preliminary_verdict": "authentic",
+  "reasoning_summary": "No evidence of metadata tampering or compression inconsistency."
+}

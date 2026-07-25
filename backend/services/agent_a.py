@@ -22,13 +22,14 @@ Severity guide:
 - critical: definitive manipulation signature (known AI generator tag, impossible ELA pattern)
 - high: strong anomaly with no innocent explanation
 - medium: suspicious pattern that could have innocent cause
-- low: minor inconsistency, noted for completeness"""
+- low: minor inconsistency, noted for completeness
+- none: positive evidence of authenticity (e.g., "original camera EXIF tags intact"). If the image is authentic, you MUST still log your positive evidence in the findings array using severity="none"."""
 
 
 async def run_agent_a(
     original_image_bytes: bytes, ela_image_bytes: bytes, metadata: dict, scene_profile: SceneProfile
 ) -> AgentReport:
-    model_name = "gemini-2.5-flash"
+    model_name = "gemini-2.0-flash"
     client = genai.Client(
         api_key=os.environ.get("GEMINI_API_KEY"), http_options={"api_version": "v1beta"}
     )
