@@ -17,7 +17,7 @@ export default function Home() {
   const [exporting, setExporting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  // V6.0 Interactive Features State
+  // V7.0 Interactive Features State
   const [cooldown, setCooldown] = useState(0);
   const [sliderPos, setSliderPos] = useState(50);
   const [selectedOverlay, setSelectedOverlay] = useState<string | null>(null);
@@ -140,7 +140,17 @@ export default function Home() {
     try {
       await analyzeImageStream(
         file,
-        (step) => setLiveSteps((prev) => [...prev, step]),
+        (step) => setLiveSteps((prev) => {
+          if (step.replace_previous) {
+            const newSteps = [...prev];
+            const idx = newSteps.findIndex(s => s.stage === step.stage);
+            if (idx !== -1) {
+              newSteps[idx] = step;
+              return newSteps;
+            }
+          }
+          return [...prev, step];
+        }),
         (data) => {
           // Adapt new multi-agent format to support legacy UI features (bounding boxes, slider)
           const detailed_findings: any[] = [];
@@ -156,10 +166,11 @@ export default function Home() {
               const ymax = (f.location.y + f.location.h) * 1000;
               detailed_findings.push({
                 description: f.description,
+                severity: f.severity,
                 location_normalized: [ymin, xmin, ymax, xmax],
               });
             } else {
-              detailed_findings.push({ description: f.description });
+              detailed_findings.push({ description: f.description, severity: f.severity });
             }
           });
 
@@ -294,7 +305,7 @@ export default function Home() {
         <header className="flex flex-col md:flex-row justify-between items-center mb-12 border-b border-slate-800 pb-8 print:border-black print:mb-4">
           <div>
             <h1 className="text-4xl md:text-5xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 mb-2 print:text-black print:bg-none">
-              NEURAL FORENSICS V6.0
+              NEURAL FORENSICS V7.0
             </h1>
             <div className="flex flex-col gap-3">
               <p className="text-slate-500 font-mono text-xs tracking-widest uppercase flex items-center print:text-slate-800">
@@ -488,6 +499,7 @@ export default function Home() {
               <div className="mt-8 space-y-4">
                 <input
                   type="file"
+                  accept="image/*"
                   id="forensic-input"
                   className="hidden"
                   accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
@@ -605,6 +617,17 @@ export default function Home() {
                       <p className="text-slate-300 italic mb-2">
                         "{step.message}"
                       </p>
+                      {step.details && (
+                        <details className="mt-2 group/details">
+                          <summary className="text-xs text-slate-500 font-mono cursor-pointer hover:text-cyan-400 transition-colors list-none flex items-center">
+                            <span className="w-2 h-2 rounded-full bg-cyan-500/50 mr-2 group-open/details:animate-pulse"></span>
+                            View Detail
+                          </summary>
+                          <div className="mt-2 p-3 bg-slate-950/50 border border-slate-800 rounded-lg text-xs font-mono text-slate-400 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                            {step.details}
+                          </div>
+                        </details>
+                      )}
                     </div>
                   ))}
                   {loading && (
@@ -635,6 +658,7 @@ export default function Home() {
             {(loading || result) && (
               <div className="mb-10">
                 <AgentConsensusPanel
+                  sceneProfile={result?.scene_profile || null}
                   agentAReport={result?.agent_a_report || null}
                   agentBReport={result?.agent_b_report || null}
                   finalVerdict={result}
@@ -691,26 +715,27 @@ export default function Home() {
                 {/* INTERACTIVE FINDINGS */}
                 <div className="space-y-5 print:mt-10">
                   <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] px-2">
-                    Anomalous Artifacts Detected
+                    {result.detailed_findings?.some((f: any) => f.severity && f.severity !== 'none') ? "Anomalous Artifacts Detected" : "Authenticity Findings"}
                   </h3>
                   <div className="grid grid-cols-1 gap-3">
                     {result.detailed_findings?.map(
                       (finding: any, idx: number) => {
                         const isInteractive = !!finding.location_normalized;
+                        const isPositive = finding.severity === 'none';
                         return (
                           <div
                             key={idx}
                             onClick={() =>
                               isInteractive && handleFindingClick(finding)
                             }
-                            className={`flex items-center justify-between bg-slate-900/40 border border-slate-800 p-5 rounded-2xl text-left w-full print:border-slate-200 ${isInteractive ? "group hover:bg-slate-900/60 hover:border-cyan-500/30 transition-all cursor-pointer" : "cursor-default"}`}
+                            className={`flex items-center justify-between bg-slate-900/40 border border-slate-800 p-5 rounded-2xl text-left w-full print:border-slate-200 ${isInteractive ? `group hover:bg-slate-900/60 ${isPositive ? 'hover:border-emerald-500/30' : 'hover:border-cyan-500/30'} transition-all cursor-pointer` : "cursor-default"}`}
                           >
                             <div className="flex items-center">
                               <div
-                                className={`w-8 h-8 rounded-lg bg-slate-950 flex items-center justify-center mr-5 border border-slate-800 ${isInteractive ? "group-hover:border-cyan-500/50" : ""}`}
+                                className={`w-8 h-8 rounded-lg bg-slate-950 flex items-center justify-center mr-5 border border-slate-800 ${isInteractive ? (isPositive ? 'group-hover:border-emerald-500/50' : 'group-hover:border-cyan-500/50') : ""}`}
                               >
                                 <span
-                                  className={`text-[9px] font-black text-slate-600 ${isInteractive ? "group-hover:text-cyan-500" : ""}`}
+                                  className={`text-[9px] font-black text-slate-600 ${isInteractive ? (isPositive ? 'group-hover:text-emerald-500' : 'group-hover:text-cyan-500') : ""}`}
                                 >
                                   0{idx + 1}
                                 </span>
@@ -759,7 +784,7 @@ export default function Home() {
             <span className="hidden md:inline">Precision_Gate: 0.9997</span>
           </div>
           <div className="italic text-slate-800 font-black">
-            &copy; 2026 NEURAL INTERROGATOR // V6.0 SUITE
+            &copy; 2026 NEURAL INTERROGATOR // V7.0 SUITE
           </div>
         </footer>
       </div>

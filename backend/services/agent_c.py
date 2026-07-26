@@ -8,6 +8,9 @@ from models.agent_schema import AgentReport, FinalVerdict, AgentFinding, ScenePr
 
 logger = logging.getLogger(__name__)
 
+DEGRADED_STATE_CONFIDENCE_CAP = 0.30
+
+
 SYSTEM_PROMPT = """You are Agent C — the Forensic Arbitrator. You do not see images.
 You receive two specialist reports and issue the final binding verdict.
 
@@ -30,6 +33,11 @@ You return ONLY a JSON object matching the FinalVerdict schema. No preamble. No 
 async def _call_cerebras(
     client: AsyncOpenAI, model_name: str, messages: list
 ) -> tuple[str, str]:
+    if os.environ.get("USE_MOCK_LLM") == "true":
+        from services.mock_llm import get_mock_response
+        logger.info("[arbitrator] Using MOCK LLM response.")
+        return get_mock_response("arbitrator"), f"mock-{model_name}"
+        
     logger.info(f"Calling Cerebras model: {model_name}")
     response = await client.chat.completions.create(
         model=model_name,
@@ -42,17 +50,26 @@ async def _call_cerebras(
 
 
 async def _call_groq_fallback(messages: list) -> FinalVerdict:
-    logger.info("Falling back Arbitrator to Groq...")
-    client = AsyncGroq()
-    model_name = "llama-3.3-70b-versatile"
-    response = await client.chat.completions.create(
-        model=model_name,
-        messages=messages,
-        response_format={"type": "json_object"},
-        temperature=0.0,
-    )
-    verdict = FinalVerdict.model_validate_json(response.choices[0].message.content)
-    verdict.providers_used.append(response.model)
+    if os.environ.get("USE_MOCK_LLM") == "true":
+        from services.mock_llm import get_mock_response
+        logger.info("[arbitrator fallback] Using MOCK LLM response.")
+        text_content = get_mock_response("arbitrator", fallback=True)
+        model = "mock-llama-3.3-70b-versatile"
+    else:
+        logger.info("Falling back Arbitrator to Groq...")
+        client = AsyncGroq()
+        model_name = "llama-3.3-70b-versatile"
+        response = await client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            response_format={"type": "json_object"},
+            temperature=0.0,
+        )
+        text_content = response.choices[0].message.content
+        model = response.model
+        
+    verdict = FinalVerdict.model_validate_json(text_content)
+    verdict.providers_used.append(model)
     verdict.degraded_mode = True
     return verdict
 
@@ -102,17 +119,18 @@ async def run_agent_c(report_a: AgentReport, report_b: AgentReport, scene_profil
     try:
         verdict = await asyncio.wait_for(_attempt_parse(), timeout=40.0)
         verdict.degraded_mode = False
-        return verdict
     except Exception as e:
         logger.error(f"Agent C Cerebras primary failed: {e}")
         try:
-            return await asyncio.wait_for(_call_groq_fallback(messages), timeout=30.0)
+            verdict = await asyncio.wait_for(_call_groq_fallback(messages), timeout=30.0)
         except Exception as fallback_e:
-            logger.error(f"Agent C Groq fallback also failed: {fallback_e}")
+            error_msg_e = str(e) or f"{type(e).__name__} (no message)"
+            error_msg_fallback = str(fallback_e) or f"{type(fallback_e).__name__} (no message)"
+            logger.error(f"Agent C Groq fallback also failed: {error_msg_fallback}")
             finding = AgentFinding(
                 type="arbitration_failure",
                 severity="critical",
-                description=f"Arbitrator experienced a total failure: {str(e)} | Fallback: {str(fallback_e)}",
+                description=f"Arbitrator experienced a total failure: {error_msg_e} | Fallback: {error_msg_fallback}",
                 location=None,
             )
             return FinalVerdict(
@@ -122,9 +140,28 @@ async def run_agent_c(report_a: AgentReport, report_b: AgentReport, scene_profil
                 consensus="conflict",
                 agent_a_report=report_a,
                 agent_b_report=report_b,
-                arbitrator_reasoning=f"Arbitrator experienced a total failure during evaluation: {str(e)}",
+                arbitrator_reasoning=f"Arbitrator experienced a total failure during evaluation: {error_msg_e}",
                 key_evidence=["Arbitration failure"],
                 artifact_locations=[finding],
                 providers_used=[model_name],
                 degraded_mode=True,
             )
+
+    # Apply override for degraded specialist agents
+    agent_a_failed = report_a.confidence == 0.0 or report_a.preliminary_verdict.lower() == "uncertain"
+    agent_b_failed = report_b.confidence == 0.0 or report_b.preliminary_verdict.lower() == "uncertain"
+
+    if agent_a_failed or agent_b_failed:
+        reasoning_lower = verdict.arbitrator_reasoning.lower()
+        failure_acknowledged = any(kw in reasoning_lower for kw in ["fail", "degraded", "one agent", "missing"])
+        
+        if not (verdict.confidence >= 0.85 and failure_acknowledged):
+            verdict.verdict = "uncertain"
+            verdict.confidence = min(verdict.confidence, DEGRADED_STATE_CONFIDENCE_CAP)
+            verdict.consensus = "conflict"
+            verdict.arbitrator_reasoning = (
+                "WARNING: The pipeline operated in a degraded state due to a specialist agent failure. "
+                f"The final verdict has been capped at 'uncertain'. Original reasoning: {verdict.arbitrator_reasoning}"
+            )
+
+    return verdict

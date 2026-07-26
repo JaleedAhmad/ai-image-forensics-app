@@ -75,53 +75,28 @@ async def _fallback_agent_a_on_groq(
     original_bytes: bytes, ela_bytes: bytes, metadata: dict, scene_profile: SceneProfile
 ) -> AgentReport:
     model_name = "qwen/qwen3.6-27b"
-    client = AsyncGroq()
-    original_b64 = base64.b64encode(original_bytes).decode("utf-8")
-    ela_b64 = base64.b64encode(ela_bytes).decode("utf-8")
+    client = AsyncGroq(api_key=os.environ.get("GROQ_API_KEY"))
 
-    messages = [
-        {"role": "system", "content": AGENT_A_PROMPT},
-        {
-            "role": "user",
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"Original Image Metadata:\n{json.dumps(metadata, indent=2)}\n\nScene Context Profile (from Agent 0):\n{scene_profile.model_dump_json(indent=2)}\n\nPlease provide your analysis strictly as a JSON object matching this schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}",
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{original_b64}"},
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{ela_b64}"},
-                },
-            ],
-        },
-    ]
+    from PIL import Image
+    import io
+    
+    TEXT_BASELINE_TOKENS = 1263
+    
+    # Dynamically estimate metadata and scene profile variation size (~4 chars per token)
+    dynamic_text_tokens = (len(json.dumps(metadata)) + len(scene_profile.model_dump_json())) / 4
+    total_text_overhead = TEXT_BASELINE_TOKENS + dynamic_text_tokens
 
-    from services.llm_utils import call_llm_with_json_validation
-
-    try:
-        report = await call_llm_with_json_validation(
-            provider="groq",
-            client=client,
-            model_name=model_name,
-            system_prompt=AGENT_A_PROMPT,
-            payload=messages,
-            schema=AgentReport,
-            agent_name="metadata_analyst",
-            timeout=40.0,
-            max_tokens=4000,
-            max_retries=1,
-        )
-        return report
-    except Exception as e:
-        logger.error(f"Fallback Agent A on Groq failed: {e}")
+    # Check token budget for Groq (8000 TPM limit, max_tokens=4000, leaving ~4000 for visual + text payload)
+    # Qwen-VL empirical limit is a flat ~1800 tokens per image. Since we only send the ELA map now, it's just 1800.
+    estimated_image_tokens = 1800
+    total_estimated_tokens = estimated_image_tokens + total_text_overhead
+    
+    if total_estimated_tokens > 3900:
+        logger.warning(f"Aborting Agent A fallback: Estimated total tokens ({total_estimated_tokens:.0f}) exceed 3900 budget (Image: {estimated_image_tokens:.0f}, Text: {total_text_overhead}).")
         finding = AgentFinding(
             type="agent_failure",
             severity="critical",
-            description=f"Fallback failed: {e}",
+            description=f"Image too large for Groq fallback (Estimated total tokens: {total_estimated_tokens:.0f}) — Gemini primary required.",
             location=None,
         )
         return AgentReport(
@@ -133,8 +108,42 @@ async def _fallback_agent_a_on_groq(
             authenticity_indicators=0,
             confidence=0.0,
             preliminary_verdict="uncertain",
-            reasoning_summary="Fallback failure on Groq.",
+            reasoning_summary="Fallback aborted due to image size limitations.",
         )
+
+    ela_b64 = base64.b64encode(ela_bytes).decode("utf-8")
+
+    messages = [
+        {"role": "system", "content": AGENT_A_PROMPT},
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"Original Image Metadata:\n{json.dumps(metadata, indent=2)}\n\nScene Context Profile (from Agent 0):\n{scene_profile.model_dump_json(indent=2)}\n\nPlease provide your analysis of this ELA map strictly as a JSON object matching this schema:\n{json.dumps(AgentReport.model_json_schema(), indent=2)}",
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{ela_b64}"},
+                },
+            ],
+        },
+    ]
+
+    from services.llm_utils import call_llm_with_json_validation
+    
+    return await call_llm_with_json_validation(
+        provider="groq",
+        client=client,
+        model_name=model_name,
+        system_prompt=AGENT_A_PROMPT,
+        payload=messages,
+        schema=AgentReport,
+        agent_name="metadata_analyst",
+        timeout=60.0,
+        max_tokens=4000,
+        max_retries=1,
+    )
 
 
 async def _fallback_agent_b_on_gemini(
@@ -151,44 +160,20 @@ async def _fallback_agent_b_on_gemini(
         f"Scene Context Profile (from Agent 0):\n{scene_profile.model_dump_json(indent=2)}\n\nAnalyze these images (original and edge map) and return your report.",
     ]
 
-    try:
-
-        async def call():
-            return await client.aio.models.generate_content(
-                model=model_name,
-                contents=parts,
-                config=types.GenerateContentConfig(
-                    system_instruction=AGENT_B_PROMPT,
-                    response_mime_type="application/json",
-                    response_schema=AgentReport,
-                    temperature=0.0,
-                ),
-            )
-
-        resp = await asyncio.wait_for(call(), timeout=30.0)
-        report = AgentReport.model_validate_json(resp.text)
-        report.provider = model_name
-        report.agent = "semantic_auditor"
-        return report
-    except Exception as e:
-        logger.error(f"Fallback Agent B on Gemini failed: {e}")
-        finding = AgentFinding(
-            type="agent_failure",
-            severity="critical",
-            description=f"Fallback failed: {e}",
-            location=None,
-        )
-        return AgentReport(
-            thinking="Fallback due to failure. No reasoning available.",
-            agent="semantic_auditor",
-            provider=model_name,
-            findings=[finding],
-            manipulation_indicators=0,
-            authenticity_indicators=0,
-            confidence=0.0,
-            preliminary_verdict="uncertain",
-            reasoning_summary="Fallback failure on Gemini.",
-        )
+    from services.llm_utils import call_llm_with_json_validation
+    
+    return await call_llm_with_json_validation(
+        provider="gemini",
+        client=client,
+        model_name=model_name,
+        system_prompt=AGENT_B_PROMPT,
+        payload=parts,
+        schema=AgentReport,
+        agent_name="semantic_auditor",
+        timeout=60.0,
+        max_tokens=4000,
+        max_retries=1,
+    )
 
 
 async def run_vision_agents(

@@ -165,6 +165,17 @@ from services.provider_router import PROVIDER_STATUS, check_provider_health
 
 @app.on_event("startup")
 async def startup_event():
+    if os.environ.get("USE_MOCK_LLM") == "true":
+        logger.warning("=========================================================")
+        logger.warning("! MOCK MODE ACTIVE — no real API calls will be made ! ")
+        logger.warning("=========================================================")
+        
+        # Enforce production constraint
+        if os.environ.get("SPACE_ID") or os.environ.get("ENVIRONMENT") == "production":
+            logger.error("CRITICAL SECURITY ERROR: USE_MOCK_LLM is enabled in a production/HF Space environment! Refusing to start.")
+            import sys
+            sys.exit(1)
+
     import asyncio
 
     asyncio.create_task(check_provider_health("gemini"))
@@ -237,6 +248,16 @@ async def analyze_image(file: UploadFile = File(...)):
             from services.agent_0 import run_agent_0
             scene_profile = await run_agent_0(image_bytes)
 
+            flags = scene_profile.flags_for_downstream_agents if scene_profile.flags_for_downstream_agents else "None"
+            await send_event(
+                {
+                    "stage": "agent_0_profiling",
+                    "message": f"Medium: {scene_profile.medium.replace('_', ' ')}. Analysis complete.",
+                    "details": f"Detected Medium: {scene_profile.medium}\nContext passed to downstream: {flags}",
+                    "replace_previous": True
+                }
+            )
+
             await send_event(
                 {
                     "stage": "agent_a_thinking",
@@ -291,6 +312,7 @@ async def analyze_image(file: UploadFile = File(...)):
             payload_data["evidence_images"] = [
                 img.model_dump() for img in evidence_images
             ]
+            payload_data["scene_profile"] = scene_profile.model_dump()
             try:
                 payload_data["original_image_url"] = orig_url
             except NameError:

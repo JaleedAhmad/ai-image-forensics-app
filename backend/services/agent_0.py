@@ -126,9 +126,18 @@ async def run_agent_0(original_image_bytes: bytes) -> SceneProfile:
 
     for attempt in range(2):
         try:
-            # 20s timeout per attempt
-            response = await asyncio.wait_for(call(), timeout=20.0)
-            return SceneProfile.model_validate_json(response.text)
+            if os.environ.get("USE_MOCK_LLM") == "true":
+                from services.mock_llm import get_mock_response
+                logger.info("[scene_profiler] Using MOCK LLM response.")
+                text_response = get_mock_response("scene_profiler")
+                # Simulate a tiny delay
+                await asyncio.sleep(0.5)
+            else:
+                # 20s timeout per attempt
+                response = await asyncio.wait_for(call(), timeout=20.0)
+                text_response = response.text
+                
+            return SceneProfile.model_validate_json(text_response)
         except Exception as e:
             if attempt == 0:
                 logger.warning(f"Agent 0 encountered an error on attempt 1: {e}. Retrying in 1s...")
