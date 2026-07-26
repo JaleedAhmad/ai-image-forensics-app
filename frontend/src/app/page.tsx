@@ -502,6 +502,7 @@ export default function Home() {
                   accept="image/*"
                   id="forensic-input"
                   className="hidden"
+                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                   onChange={handleFileChange}
                   disabled={loading}
                 />

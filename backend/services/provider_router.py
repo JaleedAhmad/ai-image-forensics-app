@@ -198,11 +198,9 @@ async def run_vision_agents(
     if isinstance(res_a, Exception):
         logger.error(f"Agent A primary failed: {res_a}")
         res_a = await _fallback_agent_a_on_groq(original_bytes, ela_bytes, metadata, scene_profile)
-        res_a.degraded_mode = True
 
     if isinstance(res_b, Exception):
         logger.error(f"Agent B primary failed: {res_b}")
         res_b = await _fallback_agent_b_on_gemini(original_bytes, edge_bytes, scene_profile)
-        res_b.degraded_mode = True
 
     return res_a, res_b
