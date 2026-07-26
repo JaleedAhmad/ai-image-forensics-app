@@ -100,20 +100,21 @@ async def _fallback_agent_a_on_groq(
         },
     ]
 
+    from services.llm_utils import call_llm_with_json_validation
+
     try:
-
-        async def call():
-            return await client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                response_format={"type": "json_object"},
-                temperature=0.0,
-            )
-
-        resp = await asyncio.wait_for(call(), timeout=25.0)
-        report = AgentReport.model_validate_json(resp.choices[0].message.content)
-        report.provider = resp.model
-        report.agent = "metadata_analyst"
+        report = await call_llm_with_json_validation(
+            provider="groq",
+            client=client,
+            model_name=model_name,
+            system_prompt=AGENT_A_PROMPT,
+            payload=messages,
+            schema=AgentReport,
+            agent_name="metadata_analyst",
+            timeout=40.0,
+            max_tokens=4000,
+            max_retries=1,
+        )
         return report
     except Exception as e:
         logger.error(f"Fallback Agent A on Groq failed: {e}")
