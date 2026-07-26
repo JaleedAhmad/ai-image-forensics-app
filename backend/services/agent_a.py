@@ -28,7 +28,7 @@ Severity guide:
 async def run_agent_a(
     original_image_bytes: bytes, ela_image_bytes: bytes, metadata: dict, scene_profile: SceneProfile
 ) -> AgentReport:
-    model_name = "gemini-2.5-flash"
+    model_name = "gemini-2.0-flash"
     client = genai.Client(
         api_key=os.environ.get("GEMINI_API_KEY"), http_options={"api_version": "v1beta"}
     )

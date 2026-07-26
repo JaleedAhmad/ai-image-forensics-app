@@ -103,7 +103,7 @@ def get_blank_profile() -> SceneProfile:
     )
 
 async def run_agent_0(original_image_bytes: bytes) -> SceneProfile:
-    model_name = "gemini-2.5-flash"
+    model_name = "gemini-2.0-flash"
 
     async def call():
         client = genai.Client(

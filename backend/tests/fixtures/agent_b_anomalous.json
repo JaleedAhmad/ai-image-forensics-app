@@ -1,0 +1,18 @@
+{
+  "thinking": "Fallback due to failure. No reasoning available.",
+  "agent": "semantic_auditor",
+  "provider": "qwen/qwen3.6-27b",
+  "findings": [
+    {
+      "type": "agent_failure",
+      "severity": "critical",
+      "location": null,
+      "description": "Agent B failed to generate a valid report: "
+    }
+  ],
+  "manipulation_indicators": 0,
+  "authenticity_indicators": 0,
+  "confidence": 0.0,
+  "preliminary_verdict": "uncertain",
+  "reasoning_summary": "Agent experienced a total failure during semantic analysis or JSON parsing."
+}

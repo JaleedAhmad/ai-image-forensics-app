@@ -1,0 +1,53 @@
+{
+  "thinking": "Both Agent A and Agent B experienced critical failures during their analysis. Agent A failed due to a resource quota exhaustion (429 error) on the Gemini API. Agent B failed to generate a valid report, resulting in a fallback state. Consequently, there is no forensic evidence regarding the image's authenticity or manipulation. The scene context profiling also failed. With zero valid findings from either specialist, a definitive verdict is impossible.",
+  "verdict": "uncertain",
+  "confidence": 0.0,
+  "consensus": "full_agreement",
+  "agent_a_report": {
+    "thinking": "Fallback due to failure. No reasoning available.",
+    "agent": "metadata_analyst",
+    "provider": "gemini-2.0-flash",
+    "findings": [
+      {
+        "type": "agent_failure",
+        "severity": "critical",
+        "location": null,
+        "description": "Agent A failed to generate a valid report: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash\\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-2.0-flash\\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_input_token_count, limit: 0, model: gemini-2.0-flash\\nPlease retry in 11.435447242s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'model': 'gemini-2.0-flash', 'location': 'global'}}, {'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-2.0-flash'}}, {'quotaMetric': 'generativelanguage.googleapis.com/generate_content_input_token_count', 'quotaId': 'GenerateContentInputTokensPerModelPerMinute-FreeTier', 'quotaDimensions': {'model': 'gemini-2.0-flash', 'location': 'global'}}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '11s'}]}}"
+      }
+    ],
+    "manipulation_indicators": 0,
+    "authenticity_indicators": 0,
+    "confidence": 0.0,
+    "preliminary_verdict": "uncertain",
+    "reasoning_summary": "Agent experienced a total failure during analysis or JSON parsing."
+  },
+  "agent_b_report": {
+    "thinking": "Fallback due to failure. No reasoning available.",
+    "agent": "semantic_auditor",
+    "provider": "qwen/qwen3.6-27b",
+    "findings": [
+      {
+        "type": "agent_failure",
+        "severity": "critical",
+        "location": null,
+        "description": "Agent B failed to generate a valid report: "
+      }
+    ],
+    "manipulation_indicators": 0,
+    "authenticity_indicators": 0,
+    "confidence": 0.0,
+    "preliminary_verdict": "uncertain",
+    "reasoning_summary": "Agent experienced a total failure during semantic analysis or JSON parsing."
+  },
+  "arbitrator_reasoning": "Both specialist agents failed to execute their analysis. Agent A encountered a rate limit error (429), and Agent B encountered a generic failure. Without successful metadata or semantic analysis, no determination can be made regarding the image's nature.",
+  "key_evidence": [
+    "Agent A critical failure: Resource quota exceeded",
+    "Agent B critical failure: Report generation failed",
+    "Scene Context Profile: Profiling failed"
+  ],
+  "artifact_locations": [],
+  "providers_used": [
+    "zai-glm-4.7"
+  ],
+  "degraded_mode": false
+}
