@@ -58,9 +58,6 @@ def _resize_for_token_budget(image_bytes: bytes, token_budget: int = 1250) -> by
 async def run_agent_b(
     original_image_bytes: bytes, edge_map_bytes: bytes, scene_profile: SceneProfile
 ) -> AgentReport:
-    # Note: qwen/qwen3.6-27b is currently Groq's only vision-capable model and is
-    # preview status (not production-guaranteed, may be discontinued without notice).
-    # This is a deliberate, accepted tradeoff, documented so it's not mistaken for an oversight later.
     model_name = "qwen/qwen3.6-27b"
 
     # Initialize the Groq client. Relies on GROQ_API_KEY environment variable.

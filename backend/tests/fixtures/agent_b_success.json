@@ -1,18 +1,18 @@
 {
-  "thinking": "The geometric structures of the charts are perfect. Lighting does not apply to a flat vector. Semantic plausibility is high for a dashboard.",
+  "thinking": "Fallback due to failure. No reasoning available.",
   "agent": "semantic_auditor",
   "provider": "qwen/qwen3.6-27b",
   "findings": [
     {
-      "type": "semantic_analysis",
-      "severity": "none",
+      "type": "agent_failure",
+      "severity": "critical",
       "location": null,
-      "description": "Perfectly aligned geometric chart structures and consistent flat vector typography."
+      "description": "Agent B failed to generate a valid report: "
     }
   ],
   "manipulation_indicators": 0,
-  "authenticity_indicators": 1,
-  "confidence": 0.95,
-  "preliminary_verdict": "authentic",
-  "reasoning_summary": "The image consists of mathematically perfect geometric and semantic structures typical of an authentic vector UI mockup."
+  "authenticity_indicators": 0,
+  "confidence": 0.0,
+  "preliminary_verdict": "uncertain",
+  "reasoning_summary": "Agent experienced a total failure during semantic analysis or JSON parsing."
 }

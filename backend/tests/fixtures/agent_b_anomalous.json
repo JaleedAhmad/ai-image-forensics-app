@@ -1,23 +1,18 @@
 {
-  "thinking": "The shadows on the left objects cast to the right, but the shadow on the central subject casts to the left. The perspective of the table is skewed compared to the background.",
+  "thinking": "Fallback due to failure. No reasoning available.",
   "agent": "semantic_auditor",
   "provider": "qwen/qwen3.6-27b",
   "findings": [
     {
-      "type": "geometric_analysis",
+      "type": "agent_failure",
       "severity": "critical",
-      "location": {
-        "x": 0.5,
-        "y": 0.5,
-        "w": 0.2,
-        "h": 0.2
-      },
-      "description": "Impossible lighting: conflicting shadow directions indicating a composite image."
+      "location": null,
+      "description": "Agent B failed to generate a valid report: "
     }
   ],
-  "manipulation_indicators": 1,
+  "manipulation_indicators": 0,
   "authenticity_indicators": 0,
-  "confidence": 0.88,
-  "preliminary_verdict": "manipulated",
-  "reasoning_summary": "Physically impossible lighting and skewed perspective strongly indicate a manipulated composite."
+  "confidence": 0.0,
+  "preliminary_verdict": "uncertain",
+  "reasoning_summary": "Agent experienced a total failure during semantic analysis or JSON parsing."
 }
