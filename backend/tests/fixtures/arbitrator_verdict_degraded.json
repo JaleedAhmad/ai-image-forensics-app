@@ -1,8 +1,8 @@
 {
   "thinking": "Both agents found strong authenticity indicators (consistent ELA, perfect geometric structure) with no manipulation indicators.",
-  "verdict": "authentic",
-  "confidence": 0.92,
-  "consensus": "full_agreement",
+  "verdict": "uncertain",
+  "confidence": 0.3,
+  "consensus": "conflict",
   "agent_a_report": {
     "thinking": "The metadata is minimal. The ELA map shows uniform noise levels typical of a single-save vector graphic.",
     "agent": "metadata_analyst",
@@ -39,7 +39,7 @@
     "preliminary_verdict": "authentic",
     "reasoning_summary": "The image consists of mathematically perfect geometric and semantic structures typical of an authentic vector UI mockup."
   },
-  "arbitrator_reasoning": "Agent A verified metadata and ELA map as authentic. Agent B verified geometric structure. Both agents completely agree.",
+  "arbitrator_reasoning": "WARNING: The pipeline operated in a degraded state due to a specialist agent failure. The final verdict has been capped at 'uncertain'.",
   "key_evidence": [
     "Uniform ELA",
     "Perfect geometric alignment"
@@ -48,5 +48,5 @@
   "providers_used": [
     "zai-glm-4.7"
   ],
-  "degraded_mode": false
+  "degraded_mode": true
 }

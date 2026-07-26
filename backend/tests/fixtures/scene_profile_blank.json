@@ -1,0 +1,19 @@
+{
+  "medium": "unclear",
+  "medium_confidence": "low",
+  "medium_reasoning": "Profiling failed.",
+  "subject_description": "Unknown subject due to profiling failure.",
+  "human_subjects_present": null,
+  "human_subject_notes": null,
+  "lighting_and_physics_notes": "Unknown",
+  "stylistic_elements_that_mimic_flaws": [],
+  "visible_text": {
+    "present": false,
+    "transcription": "",
+    "text_context": ""
+  },
+  "setting": "ambiguous",
+  "setting_notes": "Profiling failed.",
+  "image_quality_notes": "Unknown",
+  "flags_for_downstream_agents": "Agent 0 profiling failed. Proceed without scene context."
+}
