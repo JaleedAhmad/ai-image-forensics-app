@@ -1,19 +1,21 @@
 {
-  "medium": "unclear",
-  "medium_confidence": "low",
-  "medium_reasoning": "Profiling failed.",
-  "subject_description": "Unknown subject due to profiling failure.",
-  "human_subjects_present": null,
+  "medium": "vector_graphic",
+  "medium_confidence": "high",
+  "medium_reasoning": "Flat color fills, crisp typography, and absence of photographic noise or lens artifacts strongly indicate a digital UI/dashboard mockup or vector graphic.",
+  "subject_description": "A dashboard analytics interface titled 'Global Operations Overview'. It features multiple charts, numerical KPI cards, and a dark mode aesthetic.",
+  "human_subjects_present": false,
   "human_subject_notes": null,
-  "lighting_and_physics_notes": "Unknown",
-  "stylistic_elements_that_mimic_flaws": [],
+  "lighting_and_physics_notes": "No real-world lighting or physics; flat digital interface.",
+  "stylistic_elements_that_mimic_flaws": [
+    "compression mismatches typical of standard graphic design compositing and saving as PNG/JPEG"
+  ],
   "visible_text": {
-    "present": false,
-    "transcription": "",
-    "text_context": ""
+    "present": true,
+    "transcription": "Global Operations Overview\nTotal Revenue $1.2M\nActive Users 45K",
+    "text_context": "UI Headers and data cards"
   },
   "setting": "ambiguous",
-  "setting_notes": "Profiling failed.",
-  "image_quality_notes": "Unknown",
-  "flags_for_downstream_agents": "Agent 0 profiling failed. Proceed without scene context."
+  "setting_notes": "Digital interface, not a physical setting.",
+  "image_quality_notes": "Clean, high contrast, minimal noise.",
+  "flags_for_downstream_agents": "Expect sharp edges and flat colors; do not mistake vector boundaries for manipulation."
 }
