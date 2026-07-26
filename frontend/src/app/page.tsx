@@ -499,7 +499,6 @@ export default function Home() {
               <div className="mt-8 space-y-4">
                 <input
                   type="file"
-                  accept="image/*"
                   id="forensic-input"
                   className="hidden"
                   accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
